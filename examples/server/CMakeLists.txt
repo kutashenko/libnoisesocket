@@ -36,43 +36,11 @@
 
 cmake_minimum_required(VERSION 3.8)
 
-project(noisesocket VERSION 0.1)
+# Define variables
+set (NOISESOCKET_LIB_NAME noisesocket)
+set (SERVER server)
 
-set(CMAKE_C_STANDARD 99)
-
-set (CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
-
-file(GLOB NOISESOCKET_SRC
-        "src/*.c"
-        "ext/noise/src/*.c"
-        )
-
-file(GLOB NOISESOCKET_INCLUDE
-        "include/noisesocket/*.h"
-        "ext/noise/protocol/*.h"
-        )
-
-add_library(${PROJECT_NAME} ${NOISESOCKET_SRC} ${NOISESOCKET_INCLUDE})
-find_library(UV_LIB NAMES NAMES libuv.a)
-
-
-target_include_directories (${PROJECT_NAME}
-    PUBLIC
-    $<BUILD_INTERFACE:${noisesocket_SOURCE_DIR}/include>
-    $<BUILD_INTERFACE:${noisesocket_SOURCE_DIR}/include/noisesocket>
-    $<INSTALL_INTERFACE:include>
-)
-
-target_link_libraries(${PROJECT_NAME} ${UV_LIB})
-
-# Build examples
-#if (ENABLE_EXAMPLES)
-    add_subdirectory (examples/client)
-    add_subdirectory (examples/server)
-#endif (ENABLE_EXAMPLES)
-
-# Unit tests
-#if (ENABLE_TESTING)
-    enable_testing ()
-    add_subdirectory (tests)
-#endif (ENABLE_TESTING)
+aux_source_directory (${CMAKE_CURRENT_SOURCE_DIR} SRC_LIST)
+add_executable(${SERVER} ${SRC_LIST})
+target_link_libraries (${SERVER} ${NOISESOCKET_LIB_NAME})
+add_dependencies(${SERVER} noisesocket)
