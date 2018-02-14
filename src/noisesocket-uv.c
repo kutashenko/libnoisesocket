@@ -3,11 +3,7 @@
 //
 
 #include "noisesocket-uv.h"
-
-#define DEFAULT_PATERN  (NS_PATTERN_XX)
-#define DEFAULT_DH      (NS_DH_CURVE25519)
-#define DEFAULT_CIPHER  (NS_CIPHER_AES_GCM)
-#define DEFAULT_HASH    (NS_HASH_BLAKE_2B)
+#include <stdbool.h>
 
 #define NS_SET(X, VAL) do { ((uv_tcp_t *)X)->data = VAL; } while(0)
 #define UV_HELPER_SET(X, VAL) do { NS(X)->data = VAL; } while(0)
@@ -26,6 +22,8 @@ typedef struct {
     cb_overload_t cb;
     uint8_t read_buf[READ_BUF_SZ];
     size_t  read_buf_fill;
+
+    bool handshake_done;
 } ns_uv_t;
 
 static void
@@ -105,14 +103,50 @@ ns_close(uv_handle_t *handle, uv_close_cb close_cb) {
     uv_close(handle, _uv_close);
 }
 
+static bool
+process_handshake(ns_ctx_t *ctx,
+                  ssize_t nread,
+                  const uv_buf_t *buf) {
+    return false;
+}
+
+static void
+print_buf(const uint8_t *data, size_t data_sz) {
+    int i;
+
+    for (i = 0; i < data_sz; ++i) {
+        printf("%02x, ", data[i]);
+    }
+    printf("\n");
+}
+
 void
 _uv_read(uv_stream_t *stream,
          ssize_t nread,
          const uv_buf_t *buf) {
-    // Handshake processing
-//    if (UV_HELPER(handle)->cb.read) {
-//        UV_HELPER(handle)->cb.read();
-//    }
+
+    bool use_callback = true;
+
+    if (nread > 0) {
+
+        print_buf((uint8_t *)buf->base, nread);
+
+        if (!UV_HELPER(stream)->handshake_done) {
+            // Handshake processing
+            if (process_handshake(NS(stream), nread, buf)) {
+                UV_HELPER(stream)->handshake_done = true;
+            }
+            use_callback = false;
+        } else {
+
+        }
+    }
+
+    // User's callback
+    if (use_callback
+            && UV_HELPER(stream)->cb.read) {
+        UV_HELPER(stream)->cb.read(stream, nread, buf);
+    }
 }
 
 int
