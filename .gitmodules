@@ -1,4 +1,0 @@
-[submodule "ext/libsodium"]
-	path = ext/libsodium
-	url = https://github.com/jedisct1/libsodium.git
-	branch = stable
