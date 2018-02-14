@@ -44,3 +44,8 @@ aux_source_directory (${CMAKE_CURRENT_SOURCE_DIR} SRC_LIST)
 add_executable(${SERVER} ${SRC_LIST})
 target_link_libraries (${SERVER} ${NOISESOCKET_LIB_NAME})
 add_dependencies(${SERVER} noisesocket)
+
+target_include_directories (${SERVER}
+        PUBLIC
+        "../../ext/noisesocket"
+        )

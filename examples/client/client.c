@@ -2,14 +2,16 @@
 #include <stdlib.h>
 #include <uv.h>
 
-static void on_close(uv_handle_t* handle);
-static void on_connect(uv_connect_t* req, int status);
-static void on_write(uv_write_t* req, int status);
+static void on_close(uv_handle_t *handle);
+
+static void on_connect(uv_connect_t *req, int status);
+
+static void on_write(uv_write_t *req, int status);
 
 static uv_loop_t *loop;
 
 static void
-alloc_cb (uv_handle_t *handle, size_t size, uv_buf_t *buf) {
+alloc_cb(uv_handle_t *handle, size_t size, uv_buf_t *buf) {
     buf->base = malloc(size);
     buf->len = size;
 }
@@ -30,13 +32,13 @@ on_write(uv_write_t *req, int status) {
 }
 
 static void
-on_read (uv_stream_t *tcp, ssize_t nread, const uv_buf_t *buf) {
+on_read(uv_stream_t *tcp, ssize_t nread, const uv_buf_t *buf) {
     if (nread >= 0) {
         //printf("read: %s\n", tcp->data);
         printf("read: %s\n", buf->base);
     } else {
         //we got an EOF
-        uv_close((uv_handle_t*) tcp, on_close);
+        uv_close((uv_handle_t *) tcp, on_close);
     }
 
     //cargo-culted
@@ -44,10 +46,10 @@ on_read (uv_stream_t *tcp, ssize_t nread, const uv_buf_t *buf) {
 }
 
 static void
-on_connect (uv_connect_t *connection, int status) {
+on_connect(uv_connect_t *connection, int status) {
     printf("connected.\n");
 
-    uv_stream_t* stream = connection->handle;
+    uv_stream_t *stream = connection->handle;
 
     uv_buf_t buffer[] = {
             {.base = "hello", .len = 5},
@@ -61,7 +63,7 @@ on_connect (uv_connect_t *connection, int status) {
 }
 
 int
-main (int argc, char **argv) {
+main(int argc, char **argv) {
     loop = uv_default_loop();
 
     uv_tcp_t socket;
@@ -72,7 +74,7 @@ main (int argc, char **argv) {
     uv_ip4_addr("0.0.0.0", 30000, &dest);
 
     uv_connect_t connect;
-    uv_tcp_connect(&connect, &socket, (const struct sockaddr*) &dest, on_connect);
+    uv_tcp_connect(&connect, &socket, (const struct sockaddr *) &dest, on_connect);
 
     uv_run(loop, UV_RUN_DEFAULT);
 }
