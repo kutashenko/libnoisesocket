@@ -5,8 +5,9 @@
 #include "noisesocket.h"
 #include "debug.h"
 #include <string.h>
-#include <stdbool.h>
-#include <noisesocket/noisesocket.h>
+#include <noise/protocol.h>
+#include <noisesocket/debug.h>
+#include "helper.h"
 
 ns_result_t
 ns_init (ns_ctx_t *ctx,
@@ -45,6 +46,11 @@ ns_init (ns_ctx_t *ctx,
     return NS_OK;
 }
 
+size_t
+ns_required_buf_sz(size_t data_sz) {
+    return data_sz + 2 * sizeof(uint16_t) + 32;
+}
+
 ns_result_t
 ns_deinit (ns_ctx_t *ctx) {
 
@@ -63,3 +69,77 @@ ns_deinit (ns_ctx_t *ctx) {
     return NS_OK;
 }
 
+ns_result_t
+ns_decrypt(ns_ctx_t *ctx, uint8_t *data, size_t data_sz, size_t *res_sz) {
+    ASSERT(ctx);
+    ASSERT(data);
+    ASSERT(ctx->recv_cipher);
+
+    if (!data_sz) {
+        return NS_OK;
+    }
+
+    // Decrypt the incoming message
+    NoiseBuffer mbuf;
+    noise_buffer_set_input(mbuf, data, data_sz);
+    int err = noise_cipherstate_decrypt(ctx->recv_cipher, &mbuf);
+    if (err != NOISE_ERROR_NONE) {
+        return NS_DECRYPT_ERROR;
+    }
+
+#if 0
+    print_buf("Decrypted data", mbuf.data, mbuf.size);
+#endif
+    uint16_t sz = ntohs(*(uint16_t*)data);
+    memmove(data, data + sizeof(uint16_t), sz);
+    *res_sz = sz;
+
+    return NS_OK;
+}
+
+ns_result_t
+ns_encrypt(ns_ctx_t *ctx,
+           uint8_t *data, size_t data_sz,
+           size_t buf_sz, size_t *res_sz) {
+    ASSERT(ctx);
+    ASSERT(data);
+    ASSERT(res_sz);
+    ASSERT(ctx->send_cipher);
+
+    if (!data_sz) {
+        return NS_OK;
+    }
+
+    if (buf_sz < ns_required_buf_sz(data_sz)) {
+        return NS_SMALL_BUFFER_ERROR;
+    }
+
+    NoiseBuffer mbuf;
+
+    memmove(&data[2 * sizeof(uint16_t)], data, data_sz);
+
+    set_net_uint16(&data[sizeof(uint16_t)], data_sz);
+
+    int message_sz = data_sz + sizeof(uint16_t);
+
+    // Encrypt the message and send it
+    noise_buffer_set_inout(mbuf,
+                           &data[sizeof(uint16_t)],
+                           message_sz,
+                           buf_sz - sizeof(uint16_t));
+
+    int err = noise_cipherstate_encrypt(ctx->send_cipher, &mbuf);
+    if (err != NOISE_ERROR_NONE) {
+        DEBUG_NOISE("Noise encrypt ERROR %d\n", err);
+        return NS_ENCRYPT_ERROR;
+    }
+
+#if 0
+    DEBUGV("size of encrypted data = %d\n", (int)mbuf.size);
+#endif
+
+    set_net_uint16(data, mbuf.size);
+    *res_sz = mbuf.size + sizeof(uint16_t);
+
+    return NS_OK;
+}

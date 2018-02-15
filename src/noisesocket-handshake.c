@@ -6,10 +6,7 @@
 #include "helper.h"
 #include "debug.h"
 #include "util.h"
-
 #include <string.h>
-#include <stdbool.h>
-#include <noisesocket/debug.h>
 
 static const char * HANDSHAKE_INIT_STRING = "NoiseSocketInit1";
 
@@ -253,8 +250,8 @@ ns_parse_negotiation_data(ns_ctx_t *ctx, const ns_packet_t *packet) {
 
 static ns_result_t
 handshake_routine(ns_ctx_t *ctx, const ns_packet_t *packet) {
-
-    static uint8_t message[512];
+    // TODO: make it faster and safe
+    uint8_t message[512];
     NoiseBuffer mbuf;
     bool packet_used = false;
 
@@ -300,9 +297,11 @@ handshake_routine(ns_ctx_t *ctx, const ns_packet_t *packet) {
             }
 
             // Dummy send
-            uint8_t tmp[2];
-            memset(tmp, 0, sizeof(tmp));
-            ctx->send_func(ctx, tmp, sizeof(tmp));
+            if (noise_handshakestate_get_action(hs) < NOISE_ACTION_SPLIT) {
+                uint8_t tmp[2];
+                memset(tmp, 0, sizeof(tmp));
+                ctx->send_func(ctx, tmp, sizeof(tmp));
+            }
         } else {
             // Either the handshake has finished or it has failed
             return NS_OK;
@@ -310,6 +309,27 @@ handshake_routine(ns_ctx_t *ctx, const ns_packet_t *packet) {
     }
 
     return NS_HANDSHAKE_ERROR;
+}
+
+static ns_result_t
+split_handshake(ns_ctx_t *ctx) {
+    ASSERT(ctx);
+    ASSERT(ctx->handshake.noise);
+
+    // If the action is not "split", then the handshake has failed
+    if (NOISE_ACTION_SPLIT != noise_handshakestate_get_action(ctx->handshake.noise)) {
+        return NS_HANDSHAKE_SPLIT_ERROR;
+    }
+
+    // Split out the two CipherState objects for send and receive
+    int err = noise_handshakestate_split(ctx->handshake.noise,
+                                         &ctx->send_cipher,
+                                         &ctx->recv_cipher);
+    if (err != NOISE_ERROR_NONE) {
+        return NS_HANDSHAKE_SPLIT_ERROR;
+    }
+
+    return NS_OK;
 }
 
 ns_result_t
@@ -333,8 +353,15 @@ ns_process_handshake(ns_ctx_t *ctx, const ns_packet_t *packet) {
             ns_result_t res;
             res = handshake_routine(ctx, packet);
 
-            if (NS_HANDSHAKE_IN_PROGRESS == res
-                    || NS_OK == res) {
+            if (NS_OK == res) {
+                ns_result_t res;
+                res = split_handshake(ctx);
+                noise_handshakestate_free(ctx->handshake.noise);
+                ctx->handshake.noise = NULL;
+                return res;
+            }
+
+            if (NS_HANDSHAKE_IN_PROGRESS == res) {
                 return res;
             }
 

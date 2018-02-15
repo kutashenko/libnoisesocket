@@ -39,6 +39,12 @@ echo_write(uv_write_t *req, int status) {
     free(req);
 }
 
+void
+http_str(char *buf) {
+    static const char * resp = "HTTP/1.1 200 OK\r\nDate: Sun, 18 Feb 2018 08:56:53 GMT\r\nServer: Test Noise Socket    \r\nLast-Modified: Sat, 20 Nov 2004 07:16:26 GMT\r\nETag: \"10000000565a5-2c-3e94b66c2e680\"\r\nAccept-Ranges: bytes\r\nContent-Length: 44\r\nConnection: close\r\nContent-Type: text/html\r\nX-Pad: avoid browser bug\r\n\r\n<html><body><h1>It works!</h1></body></html>\r\n\r\n";
+    strcpy(buf, resp);
+}
+
 static void
 echo_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
     if (nread == -1) {
@@ -47,11 +53,20 @@ echo_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
         return;
     }
 
-#if 0
+    if (nread > 0) {
+        char str_buf[nread + 1];
+        memcpy(str_buf, buf->base, nread);
+        str_buf[nread] = 0;
+        printf("\n\n%s\n\n", str_buf);
+    }
+
     uv_write_t *write_req = (uv_write_t *) malloc(sizeof(uv_write_t));
-    write_req->data = (void *) buf->base;
-    ns_write(write_req, client, buf, 1, echo_write);
-#endif
+    uv_buf_t send_buf;
+    send_buf.base = malloc(1024);
+    http_str(send_buf.base);
+    send_buf.len = strlen(send_buf.base) + 1;
+    write_req->data = (void *)send_buf.base;
+    ns_write(write_req, client, &send_buf, 1, echo_write);
 }
 
 static void

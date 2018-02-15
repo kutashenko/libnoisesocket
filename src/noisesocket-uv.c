@@ -148,9 +148,11 @@ ns_close(uv_handle_t *handle, uv_close_cb close_cb) {
 }
 
 static ns_result_t
-process_handshake_packet(ns_ctx_t *ctx, const ns_packet_t *packet) {
+process_handshake_packet(ns_ctx_t *ctx, ns_packet_t *packet) {
     ns_result_t res;
     res = ns_process_handshake(ctx, packet);
+
+    packet->size = 0;
 
     // Handshake done
     if (NS_OK == res) {
@@ -163,13 +165,19 @@ process_handshake_packet(ns_ctx_t *ctx, const ns_packet_t *packet) {
 }
 
 static ns_result_t
-process_data_packet(ns_ctx_t *ctx, const ns_packet_t *packet) {
+process_data_packet(ns_ctx_t *ctx, ns_packet_t *packet) {
+
+    size_t sz;
+    CHECK_MES(ns_decrypt (ctx, packet->data, ntohs(packet->size), &sz),
+              DEBUG_NOISE("Cannot decrypt packet.\n"));
+
+    packet->size = htons(sz);
 
     return NS_OK;
 }
 
 static ns_result_t
-process_packet(ns_ctx_t *ctx, const ns_packet_t *packet) {
+process_packet(ns_ctx_t *ctx, ns_packet_t *packet) {
 #if DEBUG_PACKET_CONTENT
     print_buf("Process data",
               (const uint8_t*)packet,
@@ -230,12 +238,9 @@ _uv_read(uv_stream_t *stream,
                 bool handshake_done_prev = NS(stream)->handshake.ready;
 
                 ns_result_t res;
-                res = process_packet(NS(stream), (ns_packet_t*)ctx->read_buf);
+                ns_packet_t *packet = (ns_packet_t*)ctx->read_buf;
+                res = process_packet(NS(stream), packet);
 
-                ctx->read_buf_fill = 0;
-#if 1
-                memset(ctx->read_buf, 0, READ_BUF_SZ);
-#endif
                 if (NS_OK != res) {
                     // TODO: Pass error to user
                 }
@@ -247,9 +252,19 @@ _uv_read(uv_stream_t *stream,
 
                 // User's callback
                 if (handshake_done_prev
-                    && UV_HELPER(stream)->cb.read) {
-                    UV_HELPER(stream)->cb.read(stream, nread, buf);
+                    && UV_HELPER(stream)->cb.read
+                    && packet->size) {
+                    uv_buf_t user_buf;
+                    user_buf.base = (char*)packet->data;
+                    user_buf.len = ntohs(packet->size);
+                    UV_HELPER(stream)->cb.read(stream, user_buf.len, &user_buf);
                 }
+
+                // Clean buffer for new packet
+                ctx->read_buf_fill = 0;
+#if 1
+                memset(ctx->read_buf, 0, READ_BUF_SZ);
+#endif
             }
         }
     } else if (UV_HELPER(stream)->cb.read) {
@@ -271,14 +286,24 @@ ns_read_start(uv_stream_t *stream,
 
 int
 ns_write(uv_write_t* req,
-         uv_stream_t* handle,
+         uv_stream_t* stream,
          const uv_buf_t bufs[],
          unsigned int nbufs,
-         uv_write_cb cb) {
-#if 0
-    if (NS_OK != ns_prepare_write()) {
-        return UV_EAI_FAIL;
+         uv_write_cb write_cb) {
+
+    ASSERT (req);
+    ASSERT (UV_HELPER(stream));
+
+    // TODO: Think about correct encryption in-place
+    int i;
+    for (i = 0; i < nbufs; ++i) {
+        if (NS_OK != ns_encrypt(NS(stream),
+                                (uint8_t*)bufs[i].base, bufs[i].len,
+                                ns_required_buf_sz(bufs[i].len),
+                                (size_t*)&bufs[i].len)) {
+            return -1;
+        }
     }
-#endif
-    return ns_write(req, handle, bufs, nbufs, cb);
+
+    return uv_write(req, stream, bufs, nbufs, write_cb);
 }

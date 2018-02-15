@@ -22,10 +22,10 @@ ns_read_start(uv_stream_t *stream,
               uv_read_cb read_cb);
 
 int
-ns_write(uv_write_t *req,
-         uv_stream_t *handle,
+ns_write(uv_write_t* req,
+         uv_stream_t* stream,
          const uv_buf_t bufs[],
          unsigned int nbufs,
-         uv_write_cb cb);
+         uv_write_cb write_cb);
 
 #endif //NOISESOCKET_NOISESOCKET_UV_H

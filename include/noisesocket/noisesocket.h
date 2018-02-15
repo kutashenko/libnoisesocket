@@ -22,20 +22,12 @@ ns_result_t
 ns_deinit(ns_ctx_t *ctx);
 
 ns_result_t
-ns_connect(ns_ctx_t *ctx);
-
-size_t
-ns_negotiation_data_sz();
+ns_decrypt(ns_ctx_t *ctx, uint8_t *data, size_t data_sz, size_t *res_sz);
 
 ns_result_t
-ns_fill_negotiation_data(uint8_t *buf,
-                         size_t buf_sz,
-                         size_t *data_sz);
-
-ns_result_t
-write(const uint8_t *data, size_t dataSz);
+ns_encrypt(ns_ctx_t *ctx, uint8_t *data, size_t data_sz, size_t buf_sz, size_t *res_sz);
 
 size_t
-read(uint8_t *buf, size_t bufSz);
+ns_required_buf_sz(size_t data_sz);
 
 #endif //NOISESOCKET_NOISESOCKET_H
