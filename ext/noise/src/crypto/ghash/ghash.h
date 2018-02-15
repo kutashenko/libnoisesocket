@@ -1,6 +1,5 @@
 /*
  * Copyright (C) 2016 Southern Storm Software, Pty Ltd.
- * Copyright (C) 2016 Topology LP.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -21,38 +20,37 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-#include "internal.h"
+#ifndef CRYPTO_GHASH_h
+#define CRYPTO_GHASH_h
 
-#if USE_SODIUM
-NoiseCipherState *noise_aesgcm_new_sodium(void);
-int crypto_aead_aes256gcm_is_available(void);
+#include <stdint.h>
+#include <stddef.h>
+
+#if __WORDSIZE == 64 && !defined(GHASH_WORD64)
+#define GHASH_WORD64 1
 #endif
-#if USE_OPENSSL
-NoiseCipherState *noise_aesgcm_new_openssl(void);
+
+#if defined(GHASH_WORD64)
+
+typedef struct {
+    uint64_t H[2];
+    uint64_t Y[2];
+    uint8_t posn;
+} ghash_state;
+
 #else
-NoiseCipherState *noise_aesgcm_new_ref(void);
+
+typedef struct {
+    uint32_t H[4];
+    uint32_t Y[4];
+    uint8_t posn;
+} ghash_state;
+
 #endif
 
-/**
- * \brief Creates a new AES-GCM CipherState object.
- *
- * \return A NoiseCipherState for AES-GCM cipher use, or NULL if no such state is available.
- */
-NoiseCipherState *noise_aesgcm_new(void)
-{
-    NoiseCipherState *state = 0;
-#if USE_SODIUM
-    if (crypto_aead_aes256gcm_is_available())
-        state = noise_aesgcm_new_sodium();
-#elif USE_OPENSSL
-    if (!state)
-        state = noise_aesgcm_new_openssl();
-#else
-    if (!state)
-        state = noise_aesgcm_new_ref();
+void ghash_reset(ghash_state *state, const void *key);
+void ghash_update(ghash_state *state, const void *data, size_t len);
+void ghash_finalize(ghash_state *state, void *token, size_t len);
+void ghash_pad(ghash_state *state);
+
 #endif
-
-    return state;
-}
-
-

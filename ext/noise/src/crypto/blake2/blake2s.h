@@ -1,6 +1,5 @@
 /*
  * Copyright (C) 2016 Southern Storm Software, Pty Ltd.
- * Copyright (C) 2016 Topology LP.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -21,38 +20,46 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-#include "internal.h"
+#ifndef BLAKE2s_H
+#define BLAKE2s_H
 
-#if USE_SODIUM
-NoiseCipherState *noise_aesgcm_new_sodium(void);
-int crypto_aead_aes256gcm_is_available(void);
+#include <stdint.h>
+#include <stddef.h>
+
+#ifdef __cplusplus
+extern "C" {
 #endif
-#if USE_OPENSSL
-NoiseCipherState *noise_aesgcm_new_openssl(void);
+
+#if defined(__SSE2__) && defined(__GNUC__) && __GNUC__ >= 4
+#define BLAKE2S_USE_VECTOR_MATH 1
+#ifdef __clang__
+typedef uint32_t BlakeVectorUInt32 __attribute__((ext_vector_type(4)));
 #else
-NoiseCipherState *noise_aesgcm_new_ref(void);
+typedef uint32_t BlakeVectorUInt32 __attribute__((__vector_size__(16)));
+#endif
+#else
+#undef BLAKE2S_USE_VECTOR_MATH
 #endif
 
-/**
- * \brief Creates a new AES-GCM CipherState object.
- *
- * \return A NoiseCipherState for AES-GCM cipher use, or NULL if no such state is available.
- */
-NoiseCipherState *noise_aesgcm_new(void)
+typedef struct
 {
-    NoiseCipherState *state = 0;
-#if USE_SODIUM
-    if (crypto_aead_aes256gcm_is_available())
-        state = noise_aesgcm_new_sodium();
-#elif USE_OPENSSL
-    if (!state)
-        state = noise_aesgcm_new_openssl();
+#if BLAKE2S_USE_VECTOR_MATH
+    BlakeVectorUInt32 h[2];
 #else
-    if (!state)
-        state = noise_aesgcm_new_ref();
+    uint32_t h[8];
+#endif
+    uint8_t  m[64];
+    uint64_t length;
+    uint8_t  posn;
+
+} BLAKE2s_context_t;
+
+void BLAKE2s_reset(BLAKE2s_context_t *context);
+void BLAKE2s_update(BLAKE2s_context_t *context, const void *data, size_t size);
+void BLAKE2s_finish(BLAKE2s_context_t *context, uint8_t *hash);
+
+#ifdef __cplusplus
+};
 #endif
 
-    return state;
-}
-
-
+#endif

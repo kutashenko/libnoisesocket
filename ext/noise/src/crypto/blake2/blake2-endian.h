@@ -1,6 +1,5 @@
 /*
  * Copyright (C) 2016 Southern Storm Software, Pty Ltd.
- * Copyright (C) 2016 Topology LP.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -21,38 +20,36 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-#include "internal.h"
+#ifndef __BLAKE2_ENDIAN_H__
+#define __BLAKE2_ENDIAN_H__
 
-#if USE_SODIUM
-NoiseCipherState *noise_aesgcm_new_sodium(void);
-int crypto_aead_aes256gcm_is_available(void);
+#if defined(__WIN32__) || defined(WIN32)
+#ifndef __BIG_ENDIAN
+#define __BIG_ENDIAN 4321
 #endif
-#if USE_OPENSSL
-NoiseCipherState *noise_aesgcm_new_openssl(void);
+#ifndef __LITTLE_ENDIAN
+#define __LITTLE_ENDIAN 1234
+#endif
+#ifndef __BYTE_ORDER
+#define __BYTE_ORDER __LITTLE_ENDIAN
+#endif
+#elif defined(__APPLE__)
+#include <machine/endian.h>
+#if !defined( __BYTE_ORDER) && defined(__DARWIN_BYTE_ORDER)
+#define __BYTE_ORDER __DARWIN_BYTE_ORDER
+#endif
+#if !defined( __BIG_ENDIAN) && defined(__DARWIN_BIG_ENDIAN)
+#define __BIG_ENDIAN __DARWIN_BIG_ENDIAN
+#endif
+#if !defined( __LITTLE_ENDIAN) && defined(__DARWIN_LITTLE_ENDIAN)
+#define __LITTLE_ENDIAN __DARWIN_LITTLE_ENDIAN
+#endif
 #else
-NoiseCipherState *noise_aesgcm_new_ref(void);
+#include <endian.h>
 #endif
 
-/**
- * \brief Creates a new AES-GCM CipherState object.
- *
- * \return A NoiseCipherState for AES-GCM cipher use, or NULL if no such state is available.
- */
-NoiseCipherState *noise_aesgcm_new(void)
-{
-    NoiseCipherState *state = 0;
-#if USE_SODIUM
-    if (crypto_aead_aes256gcm_is_available())
-        state = noise_aesgcm_new_sodium();
-#elif USE_OPENSSL
-    if (!state)
-        state = noise_aesgcm_new_openssl();
-#else
-    if (!state)
-        state = noise_aesgcm_new_ref();
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+#define BLAKE2_LITTLE_ENDIAN 1
 #endif
 
-    return state;
-}
-
-
+#endif

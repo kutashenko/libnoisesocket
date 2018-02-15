@@ -45,25 +45,33 @@ set (CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 file(GLOB NOISESOCKET_SRC
         "src/*.c"
         "ext/noise/src/*.c"
+        "ext/noise/src/backend/sodium/*.c"
+        "ext/noise/src/crypto/donna/*.c"
         )
 
 file(GLOB NOISESOCKET_INCLUDE
         "include/noisesocket/*.h"
         "ext/noise/protocol/*.h"
+        "ext/noise/src/internal.h"
         )
 
 add_library(${PROJECT_NAME} ${NOISESOCKET_SRC} ${NOISESOCKET_INCLUDE})
 find_library(UV_LIB NAMES NAMES libuv.a)
 
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/Findsodium.cmake")
 
 target_include_directories (${PROJECT_NAME}
     PUBLIC
+    $<BUILD_INTERFACE:${noisesocket_SOURCE_DIR}/ext/noise/src>
     $<BUILD_INTERFACE:${noisesocket_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${noisesocket_SOURCE_DIR}/include/noisesocket>
     $<INSTALL_INTERFACE:include>
+    sodium_INCLUDE_DIR
 )
 
-target_link_libraries(${PROJECT_NAME} ${UV_LIB})
+add_definitions(-DUSE_SODIUM=1)
+
+target_link_libraries(${PROJECT_NAME} ${UV_LIB} ${sodium_LIBRARY_RELEASE})
 
 # Build examples
 #if (ENABLE_EXAMPLES)

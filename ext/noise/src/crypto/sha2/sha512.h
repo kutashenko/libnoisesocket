@@ -1,6 +1,5 @@
 /*
  * Copyright (C) 2016 Southern Storm Software, Pty Ltd.
- * Copyright (C) 2016 Topology LP.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -21,38 +20,32 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-#include "internal.h"
+#ifndef SHA512_h
+#define SHA512_h
 
-#if USE_SODIUM
-NoiseCipherState *noise_aesgcm_new_sodium(void);
-int crypto_aead_aes256gcm_is_available(void);
-#endif
-#if USE_OPENSSL
-NoiseCipherState *noise_aesgcm_new_openssl(void);
-#else
-NoiseCipherState *noise_aesgcm_new_ref(void);
+#include <stdint.h>
+#include <stddef.h>
+
+#ifdef __cplusplus
+extern "C" {
 #endif
 
-/**
- * \brief Creates a new AES-GCM CipherState object.
- *
- * \return A NoiseCipherState for AES-GCM cipher use, or NULL if no such state is available.
- */
-NoiseCipherState *noise_aesgcm_new(void)
+typedef struct
 {
-    NoiseCipherState *state = 0;
-#if USE_SODIUM
-    if (crypto_aead_aes256gcm_is_available())
-        state = noise_aesgcm_new_sodium();
-#elif USE_OPENSSL
-    if (!state)
-        state = noise_aesgcm_new_openssl();
-#else
-    if (!state)
-        state = noise_aesgcm_new_ref();
+    uint64_t h[8];
+    uint8_t  m[128];
+    uint64_t length; /* Restricted to 2^56 bytes of input */
+    uint8_t  posn;
+
+} sha512_context_t;
+
+void sha512_reset(sha512_context_t *context);
+void sha512_update(sha512_context_t *context, const void *data, size_t size);
+void sha512_finish(sha512_context_t *context, uint8_t *hash);
+void sha512_hash(uint8_t *hash, const void *data, size_t size);
+
+#ifdef __cplusplus
+};
 #endif
 
-    return state;
-}
-
-
+#endif

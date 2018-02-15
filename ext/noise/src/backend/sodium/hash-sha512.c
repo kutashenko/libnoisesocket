@@ -22,37 +22,43 @@
  */
 
 #include "internal.h"
+#include <sodium.h>
 
-#if USE_SODIUM
-NoiseCipherState *noise_aesgcm_new_sodium(void);
-int crypto_aead_aes256gcm_is_available(void);
-#endif
-#if USE_OPENSSL
-NoiseCipherState *noise_aesgcm_new_openssl(void);
-#else
-NoiseCipherState *noise_aesgcm_new_ref(void);
-#endif
-
-/**
- * \brief Creates a new AES-GCM CipherState object.
- *
- * \return A NoiseCipherState for AES-GCM cipher use, or NULL if no such state is available.
- */
-NoiseCipherState *noise_aesgcm_new(void)
+typedef struct
 {
-    NoiseCipherState *state = 0;
-#if USE_SODIUM
-    if (crypto_aead_aes256gcm_is_available())
-        state = noise_aesgcm_new_sodium();
-#elif USE_OPENSSL
-    if (!state)
-        state = noise_aesgcm_new_openssl();
-#else
-    if (!state)
-        state = noise_aesgcm_new_ref();
-#endif
+    struct NoiseHashState_s parent;
+    crypto_hash_sha512_state sha512;
 
-    return state;
+} NoiseSHA512State;
+
+static void noise_sha512_reset(NoiseHashState *state)
+{
+    NoiseSHA512State *st = (NoiseSHA512State *)state;
+    crypto_hash_sha512_init(&(st->sha512));
 }
 
+static void noise_sha512_update(NoiseHashState *state, const uint8_t *data, size_t len)
+{
+    NoiseSHA512State *st = (NoiseSHA512State *)state;
+    crypto_hash_sha512_update(&(st->sha512), data, len);
+}
 
+static void noise_sha512_finalize(NoiseHashState *state, uint8_t *hash)
+{
+    NoiseSHA512State *st = (NoiseSHA512State *)state;
+    crypto_hash_sha512_final(&(st->sha512), hash);
+}
+
+NoiseHashState *noise_sha512_new(void)
+{
+    NoiseSHA512State *state = noise_new(NoiseSHA512State);
+    if (!state)
+        return 0;
+    state->parent.hash_id = NOISE_HASH_SHA512;
+    state->parent.hash_len = 64;
+    state->parent.block_len = 128;
+    state->parent.reset = noise_sha512_reset;
+    state->parent.update = noise_sha512_update;
+    state->parent.finalize = noise_sha512_finalize;
+    return &(state->parent);
+}
