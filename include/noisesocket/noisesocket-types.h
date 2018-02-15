@@ -82,6 +82,8 @@ typedef struct __attribute__((__packed__)) {
 
 #define NOISESOCKET_VERSION (1)
 
+#define NOISESOCKET_PACKET_SIZE_FIELD (sizeof(uint16_t))
+
 #define DEFAULT_PATERN  (NS_PATTERN_XX)
 #define DEFAULT_DH      (NS_DH_CURVE25519)
 #define DEFAULT_CIPHER  (NS_CIPHER_AES_GCM)

@@ -172,18 +172,7 @@ init_handshake(ns_ctx_t *ctx, const ns_negotiation_data_t * negotiation_data) {
         return NS_HANDSHAKE_ERROR;
     }
 
-//    // Set keypair for handshake
-//    auto dh = noise_handshakestate_get_local_keypair_dh(handshake);
-//    err = noise_dhstate_set_keypair(dh,
-//                                    _privateKey, noise_dhstate_get_private_key_length(dh),
-//                                    _publicKey, noise_dhstate_get_private_key_length(dh));
-//    if (err != NOISE_ERROR_NONE) {
-//        DEBUG_NOISE("set client key pair ERROR %d\n", err);
-//        return Result::HandshakeError;
-//    }
-//
-//    return Result::Ok;
-    return NS_HANDSHAKE_ERROR;
+    return NS_OK;
 }
 
 ns_result_t

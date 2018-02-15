@@ -47,9 +47,11 @@ echo_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
         return;
     }
 
+#if 0
     uv_write_t *write_req = (uv_write_t *) malloc(sizeof(uv_write_t));
     write_req->data = (void *) buf->base;
     ns_write(write_req, client, buf, 1, echo_write);
+#endif
 }
 
 static void
