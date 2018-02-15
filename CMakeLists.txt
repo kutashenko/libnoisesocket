@@ -47,6 +47,7 @@ file(GLOB NOISESOCKET_SRC
         "ext/noise/src/*.c"
         "ext/noise/src/backend/sodium/*.c"
         "ext/noise/src/crypto/donna/*.c"
+        "ext/noise/src/crypto/sha2/*.c"
         )
 
 file(GLOB NOISESOCKET_INCLUDE
@@ -63,13 +64,14 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/Findsodium.cmake")
 target_include_directories (${PROJECT_NAME}
     PUBLIC
     $<BUILD_INTERFACE:${noisesocket_SOURCE_DIR}/ext/noise/src>
+    $<BUILD_INTERFACE:${noisesocket_SOURCE_DIR}/ext/noise/protocol>
     $<BUILD_INTERFACE:${noisesocket_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${noisesocket_SOURCE_DIR}/include/noisesocket>
     $<INSTALL_INTERFACE:include>
     sodium_INCLUDE_DIR
 )
 
-add_definitions(-DUSE_SODIUM=1)
+add_definitions(-DUSE_SODIUM=1 -DDEBUG_PACKET_CONTENT=1 -DHAVE_PTHREAD=1)
 
 target_link_libraries(${PROJECT_NAME} ${UV_LIB} ${sodium_LIBRARY_RELEASE})
 

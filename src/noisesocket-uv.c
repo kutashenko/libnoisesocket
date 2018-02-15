@@ -3,6 +3,8 @@
 //
 
 #include "noisesocket-uv.h"
+#include "debug.h"
+#include "helper.h"
 #include <stdbool.h>
 #include <noisesocket/debug.h>
 
@@ -11,6 +13,8 @@
 
 #define NS(X) ((ns_ctx_t *)((uv_tcp_t *)X)->data)
 #define UV_HELPER(X) ((ns_uv_t *)(NS(X)->data))
+
+#define NS_CTX_TO_UV(X) (((ns_uv_t *)(((ns_ctx_t*)X)->data))->uv_tcp)
 
 #define READ_BUF_SZ (64 * 1024)
 
@@ -22,18 +26,53 @@ typedef struct {
 typedef struct {
     cb_overload_t cb;
     uint8_t read_buf[READ_BUF_SZ];
-    size_t  read_buf_fill;
-
-    bool handshake_done;
+    size_t read_buf_fill;
+    uv_tcp_t *uv_tcp;
 } ns_uv_t;
 
 static void
-uv_send(const uint8_t *data, size_t data_sz) {
+write_cb(uv_write_t *req, int status) {
+    ASSERT(req);
 
+    if (status == -1) {
+        DEBUG_NOISE ("Write error!\n");
+    }
+    char *base = (char *) req->data;
+    free(base);
+    free(req);
+}
+
+static void
+uv_send(void *ctx, const uint8_t *data, size_t data_sz) {
+    ASSERT(ctx);
+    ASSERT(data);
+    ASSERT(data_sz);
+    ASSERT(NS_CTX_TO_UV(ctx));
+
+    uv_buf_t buf;
+
+    buf.base = malloc(data_sz);
+    buf.len = data_sz;
+    memcpy(buf.base, data, buf.len);
+
+#if DEBUG_PACKET_CONTENT
+    print_buf("Send data", data, data_sz);
+#endif
+
+    uv_write_t *write_req = (uv_write_t *) malloc(sizeof(uv_write_t));
+    write_req->data = (void *)buf.base;
+    uv_write(write_req,
+             (uv_stream_t*)NS_CTX_TO_UV(ctx),
+             &buf, 1,
+             write_cb);
 }
 
 static size_t
-uv_recv(uint8_t *buf, size_t buf_sz) {
+uv_recv(void *ctx, uint8_t *buf, size_t buf_sz) {
+    ASSERT(ctx);
+    ASSERT(buf);
+    ASSERT(buf_sz);
+    ASSERT(UV_HELPER(ctx)->uv_tcp);
     return 0;
 }
 
@@ -86,6 +125,8 @@ ns_tcp_init(uv_loop_t *loop, uv_tcp_t *handle,
     // Must be set only after ns_init_uv_*
     UV_HELPER_SET(handle, calloc(1, sizeof(ns_uv_t)));
 
+    UV_HELPER(handle)->uv_tcp = handle;
+
     return res;
 }
 
@@ -106,26 +147,40 @@ ns_close(uv_handle_t *handle, uv_close_cb close_cb) {
     uv_close(handle, _uv_close);
 }
 
-static bool
-process_handshake(ns_ctx_t *ctx,
-                  ssize_t nread,
-                  const uv_buf_t *buf) {
-    return false;
-}
+static ns_result_t
+process_handshake_packet(ns_ctx_t *ctx, const ns_packet_t *packet) {
+    ns_result_t res;
+    res = ns_process_handshake(ctx, packet);
 
-static void
-print_buf(const uint8_t *data, size_t data_sz) {
-    int i;
-
-    for (i = 0; i < data_sz; ++i) {
-        printf("%02x, ", data[i]);
+    // Handshake done
+    if (NS_OK == res) {
+        ctx->handshake.ready = true;
+    } else if (NS_HANDSHAKE_IN_PROGRESS != res) {
+        DEBUG_NOISE ("Handshake failed.\n");
+        return NS_HANDSHAKE_ERROR;
     }
-    printf("\n");
+    return NS_OK;
 }
 
-static void
-process_packet(const ns_packet_t *packet) {
-    print_buf(packet, ntohs(packet->size) + NOISESOCKET_PACKET_SIZE_FIELD);
+static ns_result_t
+process_data_packet(ns_ctx_t *ctx, const ns_packet_t *packet) {
+
+    return NS_OK;
+}
+
+static ns_result_t
+process_packet(ns_ctx_t *ctx, const ns_packet_t *packet) {
+#if DEBUG_PACKET_CONTENT
+    print_buf("Process data",
+              (const uint8_t*)packet,
+              ntohs(packet->size) + NOISESOCKET_PACKET_SIZE_FIELD);
+#endif
+
+    if (!ctx->handshake.ready) {
+        return process_handshake_packet(ctx, packet);
+    }
+
+    return process_data_packet(ctx, packet);
 }
 
 void
@@ -139,8 +194,8 @@ _uv_read(uv_stream_t *stream,
 
         while (to_read) {
             // Make sure we have packet size in buffer
-            if (ctx->read_buf_fill < NOISESOCKET_PACKET_SIZE_FIELD
-                                   && to_read > NOISESOCKET_PACKET_SIZE_FIELD) {
+            if ((to_read > NOISESOCKET_PACKET_SIZE_FIELD)
+                && (ctx->read_buf_fill < NOISESOCKET_PACKET_SIZE_FIELD)) {
                 memcpy(&ctx->read_buf[ctx->read_buf_fill],
                        &buf->base[nread - to_read],
                        NOISESOCKET_PACKET_SIZE_FIELD);
@@ -172,15 +227,26 @@ _uv_read(uv_stream_t *stream,
 
             // We have enough data to get whole packet
             if (ctx->read_buf_fill == (packet_sz + NOISESOCKET_PACKET_SIZE_FIELD)) {
-                bool use_callback = ctx->handshake_done;
+                bool handshake_done_prev = NS(stream)->handshake.ready;
 
-                process_packet((ns_packet_t*)ctx->read_buf);
+                ns_result_t res;
+                res = process_packet(NS(stream), (ns_packet_t*)ctx->read_buf);
+
                 ctx->read_buf_fill = 0;
 #if 1
                 memset(ctx->read_buf, 0, READ_BUF_SZ);
 #endif
+                if (NS_OK != res) {
+                    // TODO: Pass error to user
+                }
+
+                // Handshake done Callback
+                if (!handshake_done_prev && NS(stream)->handshake.ready) {
+                    // TODO: Call Handshake done Callback
+                }
+
                 // User's callback
-                if (use_callback
+                if (handshake_done_prev
                     && UV_HELPER(stream)->cb.read) {
                     UV_HELPER(stream)->cb.read(stream, nread, buf);
                 }

@@ -7,4 +7,7 @@
 
 #include <noisesocket-types.h>
 
+ns_result_t
+ns_process_handshake(ns_ctx_t *ctx, const ns_packet_t *packet);
+
 #endif //NOISESOCKET_NOISESOCKET_HANDSHAKE_H

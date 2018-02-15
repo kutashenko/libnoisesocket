@@ -7,14 +7,15 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 #include "noise/protocol/cipherstate.h"
 #include "noise/protocol/constants.h"
 #include "noise/protocol/handshakestate.h"
 
-typedef void (*ns_send_backend_t)(const uint8_t *data, size_t dataSz);
+typedef void (*ns_send_backend_t)(void *ctx, const uint8_t *data, size_t dataSz);
 
-typedef size_t (*ns_recv_backend_t)(uint8_t *buf, size_t bufSz);
+typedef size_t (*ns_recv_backend_t)(void *ctx, uint8_t *buf, size_t bufSz);
 
 typedef enum {
     NS_OK,
@@ -25,6 +26,7 @@ typedef enum {
     NS_VERSION_ERROR,
     NS_HANDSHAKE_SEND_ERROR,
     NS_HANDSHAKE_RECV_ERROR,
+    NS_HANDSHAKE_IN_PROGRESS,
     NS_HANDSHAKE_SPLIT_ERROR,
     NS_DATA_SEND_ERROR,
     NS_DATA_RECV_ERROR,
@@ -53,6 +55,23 @@ typedef enum {
     NS_HASH_BLAKE_2B = NOISE_HASH_BLAKE2b
 } ns_hash_t;
 
+typedef enum {
+    NS_HS_NEGOTIATION,
+    NS_HS_ROUTINE,
+    NS_HS_0,
+    NS_HS_1,
+    NS_HS_2,
+    NS_HS_3
+} ns_handshake_state_t;
+
+typedef struct {
+    bool ready;
+
+    ns_handshake_state_t state;
+
+    NoiseHandshakeState *noise;
+} ns_handshake_t;
+
 typedef struct {
     void *data;
     ns_send_backend_t send_func;
@@ -72,7 +91,7 @@ typedef struct {
     NoiseCipherState *send_cipher;
     NoiseCipherState *recv_cipher;
 
-    NoiseHandshakeState *handshake;
+    ns_handshake_t handshake;
 } ns_ctx_t;
 
 typedef struct __attribute__((__packed__)) {

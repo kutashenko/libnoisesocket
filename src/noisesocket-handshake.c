@@ -5,9 +5,11 @@
 #include "noisesocket-handshake.h"
 #include "helper.h"
 #include "debug.h"
+#include "util.h"
 
 #include <string.h>
 #include <stdbool.h>
+#include <noisesocket/debug.h>
 
 static const char * HANDSHAKE_INIT_STRING = "NoiseSocketInit1";
 
@@ -47,16 +49,18 @@ create_handshake(ns_ctx_t *ctx,
                  int type,
                  const ns_negotiation_data_t * negotiation_data) {
     ASSERT(ctx);
-    ASSERT(0 == ctx->handshake);
+    ASSERT(0 == ctx->handshake.noise);
+
+    noise_init();
 
     NoiseProtocolId nid;
     memset(&nid, 0, sizeof(nid));
 
     if (negotiation_data) {
-        nid.pattern_id = negotiation_data->pattern;
-        nid.cipher_id = negotiation_data->cipher;
-        nid.dh_id = negotiation_data->dh;
-        nid.hash_id = negotiation_data->hash;
+        nid.pattern_id = NOISE_ID('P', negotiation_data->pattern);
+        nid.cipher_id = NOISE_ID('C', negotiation_data->cipher);
+        nid.dh_id = NOISE_ID('D', negotiation_data->dh);
+        nid.hash_id = NOISE_ID('H', negotiation_data->hash);
         nid.prefix_id = NOISE_PREFIX_STANDARD;
     } else {
         nid.pattern_id = DEFAULT_PATERN;
@@ -68,7 +72,7 @@ create_handshake(ns_ctx_t *ctx,
 
     // Create a HandshakeState object for the protocol
     int err;
-    err = noise_handshakestate_new_by_id(&ctx->handshake, &nid, type);
+    err = noise_handshakestate_new_by_id(&ctx->handshake.noise, &nid, type);
 
     if (NOISE_ERROR_NONE != err) {
         DEBUG_NOISE("Noise handshake can't be created\n");
@@ -140,7 +144,7 @@ fill_prologue(ns_ctx_t *ctx,
 static ns_result_t
 init_handshake(ns_ctx_t *ctx, const ns_negotiation_data_t * negotiation_data) {
     ASSERT(ctx);
-    ASSERT(ctx->handshake);
+    ASSERT(ctx->handshake.noise);
 
     // Create Prologue
     uint8_t prologue[32];
@@ -153,7 +157,7 @@ init_handshake(ns_ctx_t *ctx, const ns_negotiation_data_t * negotiation_data) {
 
     // Setup prologue
     int err;
-    err = noise_handshakestate_set_prologue(ctx->handshake,
+    err = noise_handshakestate_set_prologue(ctx->handshake.noise,
                                             prologue, prologue_sz);
 
     if (err != NOISE_ERROR_NONE) {
@@ -163,7 +167,7 @@ init_handshake(ns_ctx_t *ctx, const ns_negotiation_data_t * negotiation_data) {
 
     // Set keypair for handshake
     NoiseDHState *dh;
-    dh = noise_handshakestate_get_local_keypair_dh(ctx->handshake);
+    dh = noise_handshakestate_get_local_keypair_dh(ctx->handshake.noise);
     err = noise_dhstate_set_keypair(dh,
                                     ctx->private_key, noise_dhstate_get_private_key_length(dh),
                                     ctx->public_key, noise_dhstate_get_private_key_length(dh));
@@ -172,10 +176,36 @@ init_handshake(ns_ctx_t *ctx, const ns_negotiation_data_t * negotiation_data) {
         return NS_HANDSHAKE_ERROR;
     }
 
+    // Setup recipient public key
+#if 0
+    if (noise_handshakestate_needs_remote_public_key(ctx->handshake.noise)) {
+        dh = noise_handshakestate_get_remote_public_key_dh(ctx->handshake.noise);
+        key_len = noise_dhstate_get_public_key_length(dh);
+        err = noise_dhstate_set_public_key(
+                dh, noise_ctx->public_keys->elts, key_len);
+        if (err != NOISE_ERROR_NONE)
+            return NGX_ERROR;
+    }
+#endif
+
     return NS_OK;
 }
 
-ns_result_t
+static ns_result_t
+handshake_start(ns_ctx_t *ctx) {
+    ASSERT(ctx);
+    ASSERT(ctx->handshake.noise);
+
+    int err = noise_handshakestate_start(ctx->handshake.noise);
+    if (NOISE_ERROR_NONE != err) {
+        DEBUG_NOISE("Start handshake error %d \n", err);
+        return NS_HANDSHAKE_ERROR;
+    }
+
+    return NS_OK;
+}
+
+static ns_result_t
 ns_parse_negotiation_data(ns_ctx_t *ctx, const ns_packet_t *packet) {
 
     ASSERT(ctx);
@@ -189,28 +219,129 @@ ns_parse_negotiation_data(ns_ctx_t *ctx, const ns_packet_t *packet) {
     negotiation_data = (ns_negotiation_data_t *)packet->data;
 
     if (NOISESOCKET_VERSION != ntohs(negotiation_data->version)) {
+        DEBUG_NOISE ("Unsupported noise socket VERSION.\n");
         return NS_VERSION_ERROR;
     }
 
     // Check requested capabilities
-    if (is_pattern_supported(negotiation_data->pattern)) {
+    if (!is_pattern_supported(negotiation_data->pattern)) {
+        DEBUG_NOISE ("Unsupported noise pattern : %d.\n", (int)negotiation_data->pattern);
         return NS_UNSUPPORTED_PATERN_ERROR;
     }
 
-    if (is_dh_supported(negotiation_data->dh)) {
+    if (!is_dh_supported(negotiation_data->dh)) {
+        DEBUG_NOISE ("Unsupported noise DH.\n");
         return NS_UNSUPPORTED_DH_ERROR;
     }
 
-    if (is_cipher_supported(negotiation_data->cipher)) {
+    if (!is_cipher_supported(negotiation_data->cipher)) {
+        DEBUG_NOISE ("Unsupported noise CIPHER.\n");
         return NS_UNSUPPORTED_CIPHER_ERROR;
     }
 
-    if (is_hash_supported(negotiation_data->hash)) {
+    if (!is_hash_supported(negotiation_data->hash)) {
+        DEBUG_NOISE ("Unsupported noise HASH.\n");
         return NS_UNSUPPORTED_HASH_ERROR;
     }
 
     CHECK (create_handshake(ctx, NOISE_ROLE_RESPONDER, negotiation_data));
     CHECK (init_handshake(ctx, negotiation_data));
+    CHECK (handshake_start(ctx));
 
     return NS_OK;
+}
+
+static ns_result_t
+handshake_routine(ns_ctx_t *ctx, const ns_packet_t *packet) {
+
+    static uint8_t message[512];
+    NoiseBuffer mbuf;
+    bool packet_used = false;
+
+    NoiseHandshakeState *hs = ctx->handshake.noise;
+
+    while (true) {
+        int action = noise_handshakestate_get_action(hs);
+        if (action == NOISE_ACTION_WRITE_MESSAGE) {
+            // Write the next handshake message with a zero-length payload
+            noise_buffer_set_output(mbuf, message + 2, sizeof(message) - 2);
+            int err = noise_handshakestate_write_message(hs, &mbuf, NULL);
+            if (err != NOISE_ERROR_NONE) {
+                DEBUG_NOISE("Noise write handshake error %d \n", err);
+                return NS_HANDSHAKE_ERROR;
+            }
+
+            // TODO: Send prepared message
+            set_net_uint16(message, mbuf.size);
+            ctx->send_func(ctx, message, mbuf.size + 2);
+
+        } else if (action == NOISE_ACTION_READ_MESSAGE) {
+            if (packet_used) {
+                return NS_HANDSHAKE_IN_PROGRESS;
+            }
+            packet_used = true;
+
+#if 0 // Arduino ?
+            // Dummy read
+            recvBackend(message, 2);
+#endif
+
+            // Read the next handshake message and discard the payload
+            int message_size = ntohs(packet->size);
+            if (!message_size) {
+                return NS_HANDSHAKE_IN_PROGRESS;
+            }
+
+            noise_buffer_set_input(mbuf, (uint8_t*)packet->data, message_size);
+            int err = noise_handshakestate_read_message(hs, &mbuf, NULL);
+            if (err != NOISE_ERROR_NONE) {
+                DEBUG_NOISE("Noise process handshake error %d \n", err);
+                return NS_HANDSHAKE_ERROR;
+            }
+
+            // Dummy send
+            uint8_t tmp[2];
+            memset(tmp, 0, sizeof(tmp));
+            ctx->send_func(ctx, tmp, sizeof(tmp));
+        } else {
+            // Either the handshake has finished or it has failed
+            return NS_OK;
+        }
+    }
+
+    return NS_HANDSHAKE_ERROR;
+}
+
+ns_result_t
+ns_process_handshake(ns_ctx_t *ctx, const ns_packet_t *packet) {
+    ASSERT(ctx);
+    ASSERT(packet);
+    ASSERT(!ctx->handshake.ready);
+
+    switch (ctx->handshake.state) {
+        case NS_HS_NEGOTIATION:
+            DEBUG_NOISE("Process negotiation data.\n");
+            CHECK_MES(ns_parse_negotiation_data(ctx, packet),
+                      DEBUG_NOISE("Negotiation error.\n"));
+            ++ ctx->handshake.state;
+            DEBUG_NOISE("Done.\n");
+
+            return NS_HANDSHAKE_IN_PROGRESS;
+        case NS_HS_ROUTINE:
+        default: {
+            DEBUG_NOISE("Process handshake routine.\n");
+            ns_result_t res;
+            res = handshake_routine(ctx, packet);
+
+            if (NS_HANDSHAKE_IN_PROGRESS == res
+                    || NS_OK == res) {
+                return res;
+            }
+
+            DEBUG_NOISE("Handshake routine Error.\n");
+            return res;
+        }
+    }
+
+    return NS_HANDSHAKE_ERROR;
 }
