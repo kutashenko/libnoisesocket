@@ -21,6 +21,7 @@
 typedef struct {
     uv_read_cb read;
     uv_close_cb close;
+    uv_connect_cb connect;
 } cb_overload_t;
 
 typedef struct {
@@ -270,6 +271,47 @@ _uv_read(uv_stream_t *stream,
     } else if (UV_HELPER(stream)->cb.read) {
         UV_HELPER(stream)->cb.read(stream, nread, buf);
     }
+}
+
+static void
+_uv_alloc_buffer(uv_handle_t *handle, size_t size, uv_buf_t *buf) {
+    buf->base = malloc(size);
+    buf->len = size;
+}
+
+static void
+_uv_connect(uv_connect_t *req, int status) {
+    ASSERT (req->handle);
+    ASSERT (UV_HELPER(req->handle));
+
+    uv_read_start(req->handle, _uv_alloc_buffer, _uv_read);
+
+    ns_result_t res;
+    res = ns_process_handshake(NS(req->handle), NULL);
+
+    if (NS_HANDSHAKE_IN_PROGRESS == res) {
+        res = ns_process_handshake(NS(req->handle), NULL);
+    }
+
+    if (NS_OK != res) {
+        // TODO: Inform user about error
+        // Should i add special callback ?
+    }
+}
+
+int
+ns_tcp_connect(uv_connect_t *req,
+               uv_tcp_t *handle,
+               const struct sockaddr *addr,
+               uv_connect_cb connect_cb) {
+    ASSERT (req);
+    ASSERT (NS(handle));
+    ASSERT (UV_HELPER(handle));
+
+    NS(handle)->handshake.is_client = true;
+    UV_HELPER(handle)->cb.connect = connect_cb;
+
+    return uv_tcp_connect(req, handle, addr, _uv_connect);
 }
 
 int

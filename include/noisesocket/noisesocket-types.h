@@ -66,15 +66,17 @@ typedef enum {
 
 typedef struct {
     bool ready;
+    bool is_client;
 
     ns_handshake_state_t state;
-
     NoiseHandshakeState *noise;
 } ns_handshake_t;
 
 typedef struct {
     void *data;
     ns_send_backend_t send_func;
+
+    // TODO: Remove it
     ns_recv_backend_t recv_func;
 
     ns_patern_t patern;

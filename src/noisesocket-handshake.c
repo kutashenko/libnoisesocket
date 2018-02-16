@@ -7,6 +7,7 @@
 #include "debug.h"
 #include "util.h"
 #include <string.h>
+#include <noisesocket/debug.h>
 
 static const char * HANDSHAKE_INIT_STRING = "NoiseSocketInit1";
 
@@ -79,6 +80,7 @@ create_handshake(ns_ctx_t *ctx,
     return NS_OK;
 }
 
+// TODO: Pass ns_negotiation_data_t instead of buffer
 static ns_result_t
 fill_negotiation(ns_ctx_t *ctx,
                  uint8_t * packet,
@@ -203,6 +205,32 @@ handshake_start(ns_ctx_t *ctx) {
 }
 
 static ns_result_t
+ns_send_negotiation_data(ns_ctx_t *ctx) {
+    ASSERT(ctx);
+    ASSERT(ctx->send_func);
+
+    uint8_t negotiation_data[NEGOTIATION_SZ];
+    size_t negotiation_sz = 0;
+
+    CHECK (fill_negotiation(ctx,
+                            negotiation_data,
+                            sizeof(negotiation_data),
+                            &negotiation_sz));
+
+    ctx->send_func(ctx, (uint8_t*)&negotiation_data, sizeof(negotiation_data));
+
+    ns_negotiation_data_t * negotiation_struct = (ns_negotiation_data_t*)&negotiation_data[2];
+
+    CHECK (create_handshake(ctx,
+                            NOISE_ROLE_INITIATOR,
+                            negotiation_struct));
+    CHECK (init_handshake(ctx, negotiation_struct));
+    CHECK (handshake_start(ctx));
+
+    return NS_OK;
+}
+
+static ns_result_t
 ns_parse_negotiation_data(ns_ctx_t *ctx, const ns_packet_t *packet) {
 
     ASSERT(ctx);
@@ -273,7 +301,7 @@ handshake_routine(ns_ctx_t *ctx, const ns_packet_t *packet) {
             ctx->send_func(ctx, message, mbuf.size + 2);
 
         } else if (action == NOISE_ACTION_READ_MESSAGE) {
-            if (packet_used) {
+            if (!packet || packet_used) {
                 return NS_HANDSHAKE_IN_PROGRESS;
             }
             packet_used = true;
@@ -335,20 +363,27 @@ split_handshake(ns_ctx_t *ctx) {
 ns_result_t
 ns_process_handshake(ns_ctx_t *ctx, const ns_packet_t *packet) {
     ASSERT(ctx);
-    ASSERT(packet);
     ASSERT(!ctx->handshake.ready);
 
     switch (ctx->handshake.state) {
         case NS_HS_NEGOTIATION:
-            DEBUG_NOISE("Process negotiation data.\n");
-            CHECK_MES(ns_parse_negotiation_data(ctx, packet),
-                      DEBUG_NOISE("Negotiation error.\n"));
-            ++ ctx->handshake.state;
-            DEBUG_NOISE("Done.\n");
+            if (ctx->handshake.is_client) {
+                DEBUG_NOISE("Send negotiation data.\n");
+                CHECK_MES(ns_send_negotiation_data(ctx),
+                          DEBUG_NOISE("Negotiation error.\n"));
+                ++ctx->handshake.state;
+                DEBUG_NOISE("Done.\n");
+            } else {
+                DEBUG_NOISE("Process negotiation data.\n");
+                CHECK_MES(ns_parse_negotiation_data(ctx, packet),
+                          DEBUG_NOISE("Negotiation error.\n"));
+                ++ctx->handshake.state;
+                DEBUG_NOISE("Done.\n");
+            }
 
             return NS_HANDSHAKE_IN_PROGRESS;
+
         case NS_HS_ROUTINE:
-        default: {
             DEBUG_NOISE("Process handshake routine.\n");
             ns_result_t res;
             res = handshake_routine(ctx, packet);
@@ -367,6 +402,7 @@ ns_process_handshake(ns_ctx_t *ctx, const ns_packet_t *packet) {
 
             DEBUG_NOISE("Handshake routine Error.\n");
             return res;
+        default: {
         }
     }
 
