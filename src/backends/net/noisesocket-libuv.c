@@ -1,0 +1,438 @@
+//
+// Created by Roman Kutashenko on 2/13/18.
+//
+
+#include <noisesocket/types.h>
+#include "noisesocket-libuv.h"
+#include "debug.h"
+#include "helper.h"
+
+#define NS_SET(X, VAL) do { ((uv_tcp_t *)X)->data = VAL; } while(0)
+
+#define NS(X) ((ns_ctx_t *)((uv_tcp_t *)X)->data)
+#define UV_HELPER(X) ((ns_uv_t *)(NS(X)->network))
+
+#define READ_BUF_SZ (64 * 1024)
+
+#define NOISESOCKET_PACKET_SIZE_FIELD (sizeof(uint16_t))
+
+typedef struct {
+    uv_close_cb close;
+    uv_alloc_cb alloc_cb;
+    uv_read_cb read_cb;
+    ns_session_ready_cb_t session_ready;
+} cb_overload_t;
+
+typedef struct {
+    cb_overload_t cb;
+    uint8_t read_buf[READ_BUF_SZ];
+    size_t read_buf_fill;
+    uv_tcp_t *uv_tcp;
+} ns_uv_t;
+
+static void
+write_cb(uv_write_t *req, int status) {
+    ASSERT(req);
+
+    if (status == -1) {
+        DEBUG_NOISE ("Write error!\n");
+    }
+    char *base = (char *) req->data;
+    free(base);
+    free(req);
+}
+
+static void
+uv_send(void *ctx, const uint8_t *data, size_t data_sz) {
+    ASSERT(ctx);
+    ASSERT(data);
+    ASSERT(data_sz);
+
+    uv_stream_t *stream = (uv_stream_t*)ctx;
+
+    uv_buf_t buf;
+
+    buf.base = malloc(data_sz);
+    buf.len = data_sz;
+    memcpy(buf.base, data, buf.len);
+
+#if DEBUG_PACKET_CONTENT
+    print_buf("Send data", data, data_sz);
+#endif
+
+    uv_write_t *write_req = (uv_write_t *) malloc(sizeof(uv_write_t));
+    write_req->data = (void *)buf.base;
+    uv_write(write_req,
+             stream,
+             &buf, 1,
+             write_cb);
+}
+
+static void
+publish_result(ns_uv_t *ctx, ns_result_t result) {
+    ASSERT(ctx);
+
+    if (!ctx->cb.session_ready) return;
+    ctx->cb.session_ready(ctx->uv_tcp, result);
+}
+
+static void
+ns_negotiation_state_change_cb(void *ctx,
+                               void *handle,
+                               ns_negotiation_state_t state,
+                               ns_result_t result,
+                               ns_connection_params_t *connection_params) {
+
+    ASSERT (ctx);
+    ASSERT (handle);
+
+    DEBUG_NOISE("New negotiation state:%d result:%d\n", (int)state, (int)result);
+
+    if (NS_OK != result) {
+        // Inform user about fail
+        publish_result((ns_uv_t*)NS(handle)->network, result);
+    } else if (NS_NEGOTIATION_DONE == state) {
+        ns_handshake_set_params(NS(handle)->handshake,
+                                connection_params,
+                                ns_negotiation_initial_data(ctx),
+                                ns_negotiation_initial_data_sz(ctx));
+        if (NS(handle)->is_client) {
+            ns_handshake_process(NS(handle)->handshake, NULL);
+        }
+    }
+}
+
+static void
+ns_handshake_state_change_cb(void *ctx,
+                             void *handle,
+                             ns_handshake_state_t state,
+                             ns_result_t result) {
+    ASSERT (ctx);
+    DEBUG_NOISE("New handshake state:%d result:%d\n", (int)state, (int)result);
+
+    if (NS_OK != result) {
+        // Inform user about fail
+        publish_result((ns_uv_t*)NS(handle)->network, result);
+    } else if (NS_HANDSHAKE_DONE == state) {
+
+        if (NS_OK != ns_encoding_init(NS(handle)->encoding,
+                                   ns_handshake_recv_cipher(NS(handle)->handshake),
+                                   ns_handshake_send_cipher(NS(handle)->handshake))) {
+            DEBUG_NOISE("Cannot initialize encoding module\n");
+            publish_result((ns_uv_t*)NS(handle)->network, NS_HANDSHAKE_ERROR);
+        } else {
+            // Yay, We are connected !
+            publish_result((ns_uv_t*)NS(handle)->network, result);
+        }
+    }
+}
+
+static ns_result_t
+ns_network_init(void *network,
+                uv_tcp_t *handle,
+                ns_session_ready_cb_t session_ready,
+                uv_alloc_cb alloc_cb,
+                uv_read_cb read_cb) {
+    ASSERT (network);
+    ASSERT (handle);
+
+    ns_uv_t *ctx = (ns_uv_t*)network;
+    ctx->uv_tcp = handle;
+    ctx->cb.session_ready = session_ready;
+    ctx->cb.alloc_cb = alloc_cb;
+    ctx->cb.read_cb = read_cb;
+
+    return NS_OK;
+}
+
+static ns_result_t
+ns_network_deinit(void *network) {
+    return NS_OK;
+}
+
+static void
+_uv_close(uv_handle_t *handle) {
+
+    // Call user's callback
+    if (UV_HELPER(handle)->cb.close) {
+        UV_HELPER(handle)->cb.close(handle);
+    }
+
+    // Free data
+    ns_ctx_t *ctx = (ns_ctx_t*)NS(handle);
+
+    if (ctx->negotiation) {
+        ns_negotiation_deinit(ctx->negotiation);
+        free(ctx->negotiation);
+    }
+
+    if (ctx->handshake) {
+        ns_handshake_deinit(ctx->handshake);
+        free(ctx->handshake);
+    }
+
+    if (ctx->encoding) {
+        ns_encoding_deinit(ctx->encoding);
+        free(ctx->encoding);
+    }
+
+    if (ctx->network) {
+        ns_network_deinit(ctx->network);
+        free(ctx->network);
+    }
+}
+
+ns_result_t
+ns_close(uv_handle_t *handle, uv_close_cb close_cb) {
+    UV_HELPER(handle)->cb.close = close_cb;
+    uv_close(handle, _uv_close);
+    return NS_OK;
+}
+
+static ns_result_t
+process_packet(ns_ctx_t *ctx, ns_packet_t *packet) {
+#if DEBUG_PACKET_CONTENT
+    print_buf("Process data",
+              (const uint8_t*)packet,
+              ntohs(packet->size) + NOISESOCKET_PACKET_SIZE_FIELD);
+#endif
+
+    if (NS_NEGOTIATION_DONE != ns_negotiation_state(ctx->negotiation)) {
+        return ns_negotiation_process(ctx->negotiation, packet);
+
+    } else if (NS_HANDSHAKE_DONE != ns_handshake_state(ctx->handshake)) {
+        return ns_handshake_process(ctx->handshake, packet);
+
+    } else {
+        ns_uv_t *ns_uv = (ns_uv_t*)ctx->network;
+        if (ns_uv->cb.read_cb) {
+            size_t sz;
+            CHECK_MES(ns_encoding_decrypt(ctx->encoding,
+                                          packet->data,
+                                          ntohs(packet->size),
+                                          &sz),
+                      DEBUG_NOISE("Cannot decrypt packet.\n"));
+
+            uv_buf_t buf;
+            buf.base = (char*)packet->data;
+            buf.len = sz;
+
+            ns_uv->cb.read_cb((uv_stream_t*)ns_uv->uv_tcp, sz, &buf);
+        }
+    }
+
+    return NS_OK;
+}
+
+void
+_uv_read(uv_stream_t *stream,
+         ssize_t nread,
+         const uv_buf_t *buf) {
+
+    if (nread <= 0) {
+        publish_result(UV_HELPER(stream), NS_DATA_RECV_ERROR);
+        return;
+    }
+
+    size_t to_read = nread;
+    ns_uv_t *ctx = UV_HELPER(stream);
+
+    while (to_read) {
+        // Make sure we have packet size in buffer
+        if ((to_read > NOISESOCKET_PACKET_SIZE_FIELD)
+            && (ctx->read_buf_fill < NOISESOCKET_PACKET_SIZE_FIELD)) {
+            memcpy(&ctx->read_buf[ctx->read_buf_fill],
+                   &buf->base[nread - to_read],
+                   NOISESOCKET_PACKET_SIZE_FIELD);
+            ctx->read_buf_fill += NOISESOCKET_PACKET_SIZE_FIELD;
+            to_read -= NOISESOCKET_PACKET_SIZE_FIELD;
+        }
+
+        // Try to get whole packet in read buffer
+        ns_packet_t *packet = (ns_packet_t *) ctx->read_buf;
+        size_t packet_sz = ntohs(packet->size);
+        size_t bytes_to_full_packet = packet_sz
+                                      + NOISESOCKET_PACKET_SIZE_FIELD
+                                      - ctx->read_buf_fill;
+
+        // Calculate size of data to copy
+        size_t bytes_to_read;
+        if (bytes_to_full_packet <= to_read) {
+            bytes_to_read = bytes_to_full_packet;
+        } else {
+            bytes_to_read = to_read;
+        }
+
+        // Copy data
+        memcpy(&ctx->read_buf[ctx->read_buf_fill],
+               &buf->base[nread - to_read],
+               bytes_to_read);
+        ctx->read_buf_fill += bytes_to_read;
+        to_read -= bytes_to_read;
+
+        // We have enough data to get whole packet
+        if (ctx->read_buf_fill == (packet_sz + NOISESOCKET_PACKET_SIZE_FIELD)) {
+            ns_packet_t *packet = (ns_packet_t *) ctx->read_buf;
+            if (NS_OK != process_packet(NS(stream), packet)) {
+                DEBUG_NOISE("Packet processing error.\n");
+                // TODO: Inform user about error
+            }
+
+            // Clean buffer for new packet
+            ctx->read_buf_fill = 0;
+#if 1
+            memset(ctx->read_buf, 0, READ_BUF_SZ);
+#endif
+        }
+    }
+}
+
+static void
+_uv_connect(uv_connect_t *req, int status) {
+    ASSERT (req->handle);
+    ASSERT (UV_HELPER(req->handle));
+
+    bool is_error = 0 != status;
+
+    if (!is_error) {
+        uv_read_start(req->handle, UV_HELPER(req->handle)->cb.alloc_cb, _uv_read);
+        is_error = NS_OK !=
+                ns_negotiation_process(NS(req->handle)->negotiation, NULL);
+    }
+
+    if (is_error) {
+        ns_uv_t * network_ctx = (ns_uv_t*)NS(req->handle)->network;
+        // Inform user about error
+        if (network_ctx->cb.session_ready) {
+            // TODO: Add extended error
+            network_ctx->cb.session_ready((uv_tcp_t*)req->handle, NS_NEGOTIATION_ERROR);
+        }
+    }
+}
+
+static ns_result_t
+ns_init(uv_tcp_t *handle,
+        bool is_client,
+        const ns_crypto_t *crypto_ctx,
+        ns_send_backend_t send_func,
+        ns_session_ready_cb_t session_ready_cb,
+        uv_alloc_cb alloc_cb,
+        uv_read_cb read_cb) {
+
+    ASSERT (handle);
+    ASSERT (crypto_ctx);
+    ASSERT (session_ready_cb);
+    ASSERT (alloc_cb);
+    ASSERT (read_cb);
+
+    ns_result_t res = NS_OK;
+
+    // Set NoiseSocket data
+    NS_SET(handle, calloc(1, sizeof(ns_ctx_t)));
+
+    NS(handle)->is_client = is_client;
+
+    // Setup network context
+    NS(handle)->network = calloc(1, sizeof(ns_uv_t));
+    CHECK_MES(ns_network_init(NS(handle)->network, handle, session_ready_cb, alloc_cb, read_cb),
+              DEBUG_NOISE("Cannot initialize network context."));
+
+    // Setup negotiation
+    NS(handle)->negotiation = calloc(1, ns_negotiation_ctx_size());
+    if (NS_OK != ns_negotiation_init(NS(handle)->negotiation,
+                                     is_client,
+                                     handle,
+                                     send_func,
+                                     ns_negotiation_state_change_cb)) {
+        res = NS_NEGOTIATION_ERROR;
+    }
+
+    // Setup handshake
+    NS(handle)->handshake = calloc(1, ns_handshake_ctx_size());
+    if (NS_OK != ns_handshake_init(NS(handle)->handshake,
+                                   is_client,
+                                   handle,
+                                   crypto_ctx,
+                                   send_func,
+                                   ns_handshake_state_change_cb)) {
+        res = NS_HANDSHAKE_ERROR;
+    }
+
+    // Setup encoding
+    NS(handle)->encoding = calloc(1, ns_encoding_ctx_size());
+
+    return res;
+}
+
+ns_result_t
+ns_tcp_connect_server(uv_connect_t *req,
+                      uv_tcp_t *handle,
+                      const struct sockaddr *addr,
+                      const ns_crypto_t *crypto_ctx,
+                      ns_session_ready_cb_t session_ready_cb,
+                      uv_alloc_cb alloc_cb,
+                      uv_read_cb read_cb) {
+
+    CHECK_MES(ns_init(handle,
+                      true, /* is client */
+                      crypto_ctx,
+                      uv_send,
+                      session_ready_cb,
+                      alloc_cb,
+                      read_cb),
+              DEBUG_NOISE("Cannot initialize connection.\n"));
+    return uv_tcp_connect(req, handle, addr, _uv_connect);
+}
+
+ns_result_t
+ns_tcp_connect_client(uv_tcp_t *handle,
+                      const ns_crypto_t *crypto_ctx,
+                      ns_session_ready_cb_t session_ready_cb,
+                      uv_alloc_cb alloc_cb,
+                      uv_read_cb read_cb) {
+
+    CHECK_MES(ns_init(handle,
+                      false, /* is server */
+                      crypto_ctx,
+                      uv_send,
+                      session_ready_cb,
+                      alloc_cb,
+                      read_cb),
+              DEBUG_NOISE("Cannot initialize connection.\n"));
+    if (0 != uv_read_start((uv_stream_t*)handle, UV_HELPER(handle)->cb.alloc_cb, _uv_read)) {
+        return NS_NEGOTIATION_ERROR;
+    }
+    return NS_OK;
+}
+
+ns_result_t
+ns_prepare_write(uv_stream_t *stream,
+                 uint8_t *data, size_t data_sz,
+                 size_t buf_sz, size_t *res_sz) {
+    ASSERT (stream);
+    ASSERT (NS(stream));
+    ASSERT (data);
+    ASSERT (res_sz);
+
+    if (buf_sz < (data_sz + 2)) {
+        return NS_SMALL_BUFFER_ERROR;
+    }
+
+    uint8_t *p = &data[sizeof(uint16_t)];
+    memmove(p, data, data_sz);
+
+    CHECK(ns_encoding_encrypt(NS(stream)->encoding,
+                              p, data_sz,
+                              buf_sz - sizeof(uint16_t),
+                              res_sz));
+    set_net_uint16(data, *res_sz);
+
+    *res_sz += sizeof(uint16_t);
+
+    return NS_OK;
+}
+
+size_t
+ns_write_buf_sz(size_t data_sz) {
+    return sizeof(uint16_t) + ns_encoding_required_buf_sz(data_sz);
+}

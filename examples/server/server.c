@@ -1,11 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <uv.h>
+#include <noisesocket/types.h>
 
-#include "noisesocket-uv.h"
-
-#if !defined(USE_NOISE_SOCKET)
-#define USE_NOISE_SOCKET 1
+#include "noisesocket.h"
 
 static uint8_t public_key[] = {
         0x2f, 0xd5, 0xe6, 0xe6, 0xac, 0xb5, 0xed, 0x96, 0x7a, 0xac, 0x13, 0x1d,
@@ -18,8 +16,6 @@ static uint8_t private_key[] = {
         0x3e, 0x81, 0x84, 0xcc, 0x7e, 0x61, 0x4f, 0xdd, 0x48, 0x0d, 0x71, 0x82,
         0xf6, 0xa1, 0x0c, 0x73, 0xc9, 0x2c, 0x46, 0x2c
 };
-
-#endif
 
 uv_loop_t *loop;
 
@@ -47,9 +43,9 @@ http_str(char *buf) {
 
 static void
 echo_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
-    if (nread == -1) {
+    if (nread  <= 0) {
         fprintf(stderr, "Read error!\n");
-        uv_close((uv_handle_t *) client, NULL);
+        ns_close((uv_handle_t *)client, NULL);
         return;
     }
 
@@ -64,9 +60,26 @@ echo_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
     uv_buf_t send_buf;
     send_buf.base = malloc(1024);
     http_str(send_buf.base);
-    send_buf.len = strlen(send_buf.base) + 1;
     write_req->data = (void *)send_buf.base;
-    ns_write(write_req, client, &send_buf, 1, echo_write);
+    if (NS_OK != ns_prepare_write(client,
+                                  (uint8_t*)send_buf.base, strlen(send_buf.base) + 1,
+                                  1024, &send_buf.len)) {
+        printf("ERROR: Cannot prepare data to send.");
+    }
+
+    uv_write(write_req, client, &send_buf, 1, echo_write);
+}
+
+static void
+session_ready_cb(uv_tcp_t *client, ns_result_t result) {
+
+    if (NS_OK != result) {
+        printf("Session error %d.\n", (int)result);
+        ns_close((uv_handle_t*)client, NULL);
+        return;
+    }
+
+    printf("Connected.\n");
 }
 
 static void
@@ -75,25 +88,20 @@ on_new_connection(uv_stream_t *server, int status) {
         return;
     }
 
-#if USE_NOISE_SOCKET
     uv_tcp_t *client = (uv_tcp_t *) malloc(sizeof(uv_tcp_t));
-    ns_tcp_init(loop, client,
-                public_key, sizeof(public_key),
-                private_key, sizeof(private_key));
+    uv_tcp_init(loop, client);
     if (uv_accept(server, (uv_stream_t *) client) == 0) {
-        ns_read_start((uv_stream_t *) client, alloc_buffer, echo_read);
+
+        ns_crypto_t crypto_ctx;
+        crypto_ctx.public_key = public_key;
+        crypto_ctx.public_key_sz = sizeof(public_key);
+        crypto_ctx.private_key = private_key;
+        crypto_ctx.private_key_sz = sizeof(private_key);
+
+        ns_tcp_connect_client(client, &crypto_ctx, session_ready_cb, alloc_buffer, echo_read);
     } else {
         ns_close((uv_handle_t*) client, NULL);
     }
-#else
-    uv_tcp_t *client = (uv_tcp_t*) malloc(sizeof(uv_tcp_t));
-    uv_tcp_init(loop, client);
-    if (uv_accept(server, (uv_stream_t*) client) == 0) {
-        uv_read_start((uv_stream_t*) client, alloc_buffer, echo_read);
-    } else {
-        uv_close((uv_handle_t*) client, NULL);
-    }
-#endif
 }
 
 int

@@ -40,26 +40,54 @@ project(noisesocket VERSION 0.1)
 
 set(CMAKE_C_STANDARD 99)
 
-set (CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
+set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 
+set (CMAKE_C_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fno-omit-frame-pointer -fsanitize=address")
+set (CMAKE_LINKER_FLAGS_DEBUG "${CMAKE_STATIC_LINKER_FLAGS_DEBUG} -fno-omit-frame-pointer -fsanitize=address")
+
+########### Noisesocket ###########
 file(GLOB NOISESOCKET_SRC
-        "src/*.c"
-        "ext/noise/src/*.c"
-        "ext/noise/src/backend/sodium/*.c"
-        "ext/noise/src/crypto/donna/*.c"
-        "ext/noise/src/crypto/sha2/*.c"
+        "src/helper.c"
+        "src/encoding.c"
+        "src/handshake.c"
+        "src/negotiation.c"
         )
 
 file(GLOB NOISESOCKET_INCLUDE
         "include/noisesocket/*.h"
-        "ext/noise/protocol/*.h"
-        "ext/noise/src/internal.h"
+        "include/noisesocket/private/*.h"
         )
 
-add_library(${PROJECT_NAME} ${NOISESOCKET_SRC} ${NOISESOCKET_INCLUDE})
-find_library(UV_LIB NAMES NAMES libuv.a)
+########### Noisesocket net LIBUV ###########
+file(GLOB NOISESOCKET_NET_LIBUV_SRC
+        "src/backends/net/noisesocket-libuv.c"
+        )
+
+file(GLOB NOISESOCKET_NET_LIBUV_INCLUDE
+        "include/noisesocket/backends/noisesocket-libuv.h"
+        )
 
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/Findsodium.cmake")
+
+
+add_subdirectory("src/noise-protocol")
+
+########## Could be changed to use different backends ##########
+set (NET_BACKEND_SRC     ${NOISESOCKET_NET_LIBUV_SRC})
+set (NET_BACKEND_INCLUDE ${NOISESOCKET_NET_LIBUV_INCLUDE})
+add_definitions(-DUSE_SODIUM=1 -DDEBUG_PACKET_CONTENT=1 -DHAVE_PTHREAD=1)
+find_library(UV_LIB NAMES NAMES libuv.a)
+######### ~Could be changed to use different backends ##########
+
+add_library(
+        ${PROJECT_NAME}
+
+        ${NOISESOCKET_SRC}
+        ${NOISESOCKET_INCLUDE}
+
+        ${NET_BACKEND_SRC}
+        ${NET_BACKEND_INCLUDE}
+)
 
 target_include_directories (${PROJECT_NAME}
     PUBLIC
@@ -67,13 +95,13 @@ target_include_directories (${PROJECT_NAME}
     $<BUILD_INTERFACE:${noisesocket_SOURCE_DIR}/ext/noise/protocol>
     $<BUILD_INTERFACE:${noisesocket_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${noisesocket_SOURCE_DIR}/include/noisesocket>
+    $<BUILD_INTERFACE:${noisesocket_SOURCE_DIR}/include/noisesocket/backends>
+    $<BUILD_INTERFACE:${noisesocket_SOURCE_DIR}/include/noisesocket/private>
     $<INSTALL_INTERFACE:include>
     sodium_INCLUDE_DIR
 )
-
-add_definitions(-DUSE_SODIUM=1 -DDEBUG_PACKET_CONTENT=1 -DHAVE_PTHREAD=1)
-
-target_link_libraries(${PROJECT_NAME} ${UV_LIB} ${sodium_LIBRARY_RELEASE})
+find_package (Threads)
+target_link_libraries(${PROJECT_NAME} ${UV_LIB} noise-protocol ${sodium_LIBRARY_RELEASE} ${CMAKE_THREAD_LIBS_INIT})
 
 # Build examples
 #if (ENABLE_EXAMPLES)
