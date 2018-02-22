@@ -75,7 +75,7 @@ add_subdirectory("src/noise-protocol")
 ########## Could be changed to use different backends ##########
 set (NET_BACKEND_SRC     ${NOISESOCKET_NET_LIBUV_SRC})
 set (NET_BACKEND_INCLUDE ${NOISESOCKET_NET_LIBUV_INCLUDE})
-add_definitions(-DUSE_SODIUM=1 -DDEBUG_PACKET_CONTENT=1 -DHAVE_PTHREAD=1)
+add_definitions(-DUSE_SODIUM=1 -DDEBUG_PACKET_CONTENT=0 -DHAVE_PTHREAD=1)
 find_library(UV_LIB NAMES NAMES libuv.a)
 ######### ~Could be changed to use different backends ##########
 

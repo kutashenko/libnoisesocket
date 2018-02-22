@@ -7,7 +7,7 @@
 
 #if !defined(DEBUGV)
 #   include <stdio.h>
-#   define DEBUGV printf
+#   define DEBUGV(FMT, ...) do{ /*printf(FMT, __VA_ARGS__)*/; } while(0)
 #endif
 
 #endif //NOISESOCKET_DEBUG_H
