@@ -106,7 +106,7 @@ ns_encoding_encrypt(void *ctx,
     // Encrypt the message and send it
     noise_buffer_set_inout(mbuf,
                            data,
-                           data_sz,
+                           data_sz + sizeof(uint16_t),
                            buf_sz - sizeof(uint16_t));
 
     int err = noise_cipherstate_encrypt(ENC(ctx)->send_cipher, &mbuf);
