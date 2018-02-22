@@ -20,7 +20,7 @@ static uint8_t private_key[] = {
 uv_loop_t *loop;
 
 static void
-alloc_buffer(uv_handle_t *handle, size_t size, uv_buf_t *buf) {
+alloc_buffer(uv_handle_t *, size_t size, uv_buf_t *buf) {
     buf->base = malloc(size);
     buf->len = size;
 }

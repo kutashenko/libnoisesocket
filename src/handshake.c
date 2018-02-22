@@ -8,7 +8,6 @@
 #include "handshake.h"
 #include "helper.h"
 #include "debug.h"
-#include "util.h"
 #include "noise/protocol.h"
 
 #define HS(X) ((ns_handshake_t*)X)

@@ -35,7 +35,6 @@ typedef crypto_hash_sha256_state sha256_context_t;
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #endif
-#include <stdlib.h>
 #if HAVE_PTHREAD
 #include <pthread.h>
 static pthread_once_t noise_is_initialized = PTHREAD_ONCE_INIT;

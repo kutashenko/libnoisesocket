@@ -4,7 +4,6 @@
 
 #include "helper.h"
 
-#include <arpa/inet.h>
 #include <stdio.h>
 
 void

@@ -8,7 +8,6 @@
 #include "noise/protobufs.h"
 
 #include <string.h>
-#include <noisesocket/types.h>
 
 #define NG(X) ((ns_negotiation_t*)X)
 
@@ -130,10 +129,10 @@ ns_parse_negotiation_data(ns_negotiation_t *ctx, const ns_packet_t *packet) {
         return NS_UNSUPPORTED_HASH_ERROR;
     }
 
-    ctx->connection_params.hash = negotiation_data->hash;
-    ctx->connection_params.dh = negotiation_data->dh;
-    ctx->connection_params.cipher = negotiation_data->cipher;
-    ctx->connection_params.patern = negotiation_data->pattern;
+    ctx->connection_params.hash = (ns_hash_t) negotiation_data->hash;
+    ctx->connection_params.dh = (ns_dh_t) negotiation_data->dh;
+    ctx->connection_params.cipher = (ns_cipher_t) negotiation_data->cipher;
+    ctx->connection_params.patern = (ns_patern_t) negotiation_data->pattern;
 
     size_t sz;
     fill_negotiation(ctx,
