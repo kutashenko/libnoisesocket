@@ -179,6 +179,7 @@ void test_send_receive() {
 
     if (r) {
         TEST_CHECK_(false, "Listen error!\n");
+        return;
     }
 
     //-------------- Start client --------------
