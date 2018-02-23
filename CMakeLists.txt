@@ -42,6 +42,8 @@ set(CMAKE_C_STANDARD 99)
 
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 
+#set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Werror -g -O0")
+
 ########### Address sanitizer ###########
 set (CMAKE_C_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fno-omit-frame-pointer -fsanitize=address")
 set (CMAKE_LINKER_FLAGS_DEBUG "${CMAKE_STATIC_LINKER_FLAGS_DEBUG} -fno-omit-frame-pointer -fsanitize=address")
@@ -76,6 +78,29 @@ file(GLOB NOISESOCKET_NET_LIBUV_INCLUDE
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/Findsodium.cmake")
 
 
+########### Generate and Protobuf structures ###########
+set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/protobuf/nanopb/extra)
+find_package(Nanopb REQUIRED)
+
+if (NOT ${NANOPB_FOUND})
+    message (FATAL_ERROR "NanoPB not found")
+endif()
+
+message (NANOPB_INCLUDE_DIRS = ${NANOPB_INCLUDE_DIRS})
+message (PROTOBUF_PROTOC_EXECUTABLE = ${PROTOBUF_PROTOC_EXECUTABLE})
+message (NANOPB_GENERATOR_SOURCE_DIR = ${NANOPB_GENERATOR_SOURCE_DIR})
+
+include_directories(${NANOPB_INCLUDE_DIRS})
+nanopb_generate_cpp(PROTO_SRC PROTO_INCLUDE
+        ${CMAKE_CURRENT_SOURCE_DIR}/protobuf/negotiation.proto
+        ${CMAKE_CURRENT_SOURCE_DIR}/protobuf/handshake.proto
+        )
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+set_source_files_properties(${PROTO_SRC} ${PROTO_INCLUDE}
+        PROPERTIES GENERATED TRUE)
+
+
+########### Add Noise protocol library ###########
 add_subdirectory("src/noise-protocol")
 
 ########## Could be changed to use different backends ##########
@@ -93,6 +118,9 @@ add_library(
 
         ${NET_BACKEND_SRC}
         ${NET_BACKEND_INCLUDE}
+
+        ${PROTO_SRC}
+        ${PROTO_INCLUDE}
 )
 
 target_include_directories (${PROJECT_NAME}

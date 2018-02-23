@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+import "nanopb.proto";
+
+message negotiation_initial_data {
+    string initial_protocol = 1 [(nanopb).max_size = 40];
+    repeated string switch_protocols = 2 [(nanopb).max_size = 40, (nanopb).max_count = 20];
+    repeated string retry_protocols = 3 [(nanopb).max_size = 40, (nanopb).max_count = 20];
+}
+
+message negotiation_response_data {
+    bool accept = 1;
+    string switch_protocol = 2 [(nanopb).max_size = 40];
+    string retry_protocol = 3 [(nanopb).max_size = 40];
+}
+
+/*
+InitialNegotiationData :
+{
+    initial_protocol : "Noise_IK_25519_AESGCM_SHA256",
+    switch_protocols :
+    [
+        "Noise_XXfallback_25519_AESGCM_SHA256",
+        "Noise_XXfallback_25519_ChaChaPoly_BLAKE2s"
+    ],
+    retry_protocols :
+    [
+        "Noise_XX_448_AESGCM_SHA256",
+        "Noise_XX_448_ChaChaPoly_BLAKE2s"
+    ]
+}
+
+ResponseNegotiationData :
+{
+    switch_protocol : "Noise_XXfallback_25519_AESGCM_SHA256"
+}
+*/

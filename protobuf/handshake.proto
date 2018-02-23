@@ -1,0 +1,17 @@
+/* Need to place here Virgil signature */
+
+syntax = "proto3";
+
+import "nanopb.proto";
+
+message handshake_initial_payload {
+    uint32 max_message_size = 1;
+    bool continuous_rekey = 2;
+    string certificate_type = 3 [(nanopb).max_size = 40];
+}
+
+message handshake_response_payload {
+    uint32 max_message_size = 1;
+    bool continuous_rekey = 2;
+    bytes certificate_chain = 3;
+}
