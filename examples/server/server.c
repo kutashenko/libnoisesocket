@@ -20,7 +20,7 @@ static uint8_t private_key[] = {
 uv_loop_t *loop;
 
 static void
-alloc_buffer(uv_handle_t *, size_t size, uv_buf_t *buf) {
+alloc_buffer(uv_handle_t * handle, size_t size, uv_buf_t *buf) {
     buf->base = malloc(size);
     buf->len = size;
 }
@@ -98,7 +98,12 @@ on_new_connection(uv_stream_t *server, int status) {
         crypto_ctx.private_key = private_key;
         crypto_ctx.private_key_sz = sizeof(private_key);
 
-        ns_tcp_connect_client(client, &crypto_ctx, session_ready_cb, alloc_buffer, echo_read);
+        ns_tcp_connect_client(client,
+                              &crypto_ctx,
+                              ns_negotiation_default_params(),
+                              session_ready_cb,
+                              alloc_buffer,
+                              echo_read);
     } else {
         ns_close((uv_handle_t*) client, NULL);
     }

@@ -35,19 +35,23 @@ typedef enum {
 
 // TODO: Use function to convert types
 typedef enum {
-    NS_PATTERN_XX = 9
+    NS_PATTERN_XX = 9,
+    NS_PATTERN_MAX = 1
 } ns_patern_t;
 
 typedef enum {
-    NS_DH_CURVE25519 = 1
+    NS_DH_CURVE25519 = 1,
+    NS_DH_MAX = 1
 } ns_dh_t;
 
 typedef enum {
-    NS_CIPHER_AES_GCM = 2
+    NS_CIPHER_AES_GCM = 2,
+    NS_CIPHER_MAX = 1
 } ns_cipher_t;
 
 typedef enum {
-    NS_HASH_BLAKE_2B = 2
+    NS_HASH_BLAKE_2B = 2,
+    NS_HASH_MAX = 1
 } ns_hash_t;
 
 typedef struct {

@@ -20,13 +20,14 @@ static uint8_t private_key[] = {
         0xf6, 0xa1, 0x0c, 0x73, 0xc9, 0x2c, 0x46, 0x2c
 };
 
-uv_loop_t *loop;
+static uv_loop_t *loop;
 
-const char *_test_string = "Hello world !!!";
+static const char *_test_string = "Hello world !!!";
+//static ns_negotiation_params_t _negotiation_params;
 
 #define RECEIVE_BUF_SZ (512)
-uint8_t _receive_buffer[RECEIVE_BUF_SZ];
-size_t _receive_sz = 0;
+static uint8_t _receive_buffer[RECEIVE_BUF_SZ];
+static size_t _receive_sz = 0;
 
 //------------------- Server code -----------------------
 static void
@@ -104,7 +105,12 @@ on_new_connection(uv_stream_t *server, int status) {
         crypto_ctx.private_key = private_key;
         crypto_ctx.private_key_sz = sizeof(private_key);
 
-        ns_tcp_connect_client(client, &crypto_ctx, server_session_ready_cb, alloc_buffer, echo_read);
+        ns_tcp_connect_client(client,
+                              &crypto_ctx,
+                              ns_negotiation_default_params(),
+                              server_session_ready_cb,
+                              alloc_buffer,
+                              echo_read);
     } else {
         ns_close((uv_handle_t*) client, NULL);
         uv_stop(loop);
@@ -204,6 +210,7 @@ void test_send_receive() {
                           &socket,
                           (const struct sockaddr *) &server_addr,
                           &crypto_ctx,
+                          ns_negotiation_default_params(),
                           client_session_ready_cb,
                           alloc_buffer,
                           on_read);

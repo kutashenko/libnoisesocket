@@ -8,17 +8,13 @@
 #include "noise/protobufs.h"
 
 #include <string.h>
+#include <noisesocket/negotiation-params.h>
 
 #define NG(X) ((ns_negotiation_t*)X)
 
 #define NEGOTIATION_SZ (2 + sizeof(ns_negotiation_data_t))
 
 #define NOISESOCKET_VERSION (1)
-
-#define DEFAULT_PATERN  (NS_PATTERN_XX)
-#define DEFAULT_DH      (NS_DH_CURVE25519)
-#define DEFAULT_CIPHER  (NS_CIPHER_AES_GCM)
-#define DEFAULT_HASH    (NS_HASH_BLAKE_2B)
 
 typedef struct __attribute__((__packed__)) {
     uint16_t version;
@@ -36,6 +32,7 @@ typedef struct {
     ns_connection_params_t connection_params;
     void *base_context;
     uint8_t negotiation_data[NEGOTIATION_SZ];
+    const ns_negotiation_params_t *params;
 } ns_negotiation_t;
 
 static bool
@@ -181,10 +178,10 @@ negotiation_process_client(ns_negotiation_t *ctx, const ns_packet_t *packet) {
         case NS_NEGOTIATION_NOT_STARTED:
 
             // Set default params
-            ctx->connection_params.hash = DEFAULT_HASH & 0xFF;
-            ctx->connection_params.dh = DEFAULT_DH & 0xFF;
-            ctx->connection_params.cipher = DEFAULT_CIPHER & 0xFF;
-            ctx->connection_params.patern = DEFAULT_PATERN & 0xFF;
+            ctx->connection_params.hash = ctx->params->default_hash;
+            ctx->connection_params.dh = ctx->params->default_dh;
+            ctx->connection_params.cipher = ctx->params->default_cipher;
+            ctx->connection_params.patern = ctx->params->default_patern;
 
             ns_result_t res;
             res = ns_send_negotiation_data(ctx);
@@ -198,6 +195,8 @@ negotiation_process_client(ns_negotiation_t *ctx, const ns_packet_t *packet) {
         default: {
             publish_state_change(ctx, NS_NEGOTIATION_ERROR);
         }
+        case NS_NEGOTIATION_IN_PROGRESS:break;
+        case NS_NEGOTIATION_DONE:break;
     }
     return NS_NEGOTIATION_ERROR;
 }
@@ -242,11 +241,17 @@ ns_result_t
 ns_negotiation_init(void *ctx,
                     bool is_client,
                     void *base_context,
+                    const ns_negotiation_params_t *params,
                     ns_send_backend_t send_func,
                     ns_negotiation_state_change_cb_t state_change_cb) {
 
     ASSERT(ctx);
     ASSERT(base_context);
+    ASSERT(params);
+    ASSERT(params->available_ciphers_cnt);
+    ASSERT(params->available_dh_s_cnt);
+    ASSERT(params->available_hashes_cnt);
+    ASSERT(params->available_paterns_cnt);
 
     DEBUG_NOISE("Init negotiation\n");
 
@@ -256,6 +261,7 @@ ns_negotiation_init(void *ctx,
     NG(ctx)->state_change_cb = state_change_cb;
     NG(ctx)->send_func = send_func;
     NG(ctx)->base_context = base_context;
+    NG(ctx)->params = params;
 
     return NS_OK;
 }

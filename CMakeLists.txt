@@ -59,6 +59,7 @@ file(GLOB NOISESOCKET_SRC
         "src/encoding.c"
         "src/handshake.c"
         "src/negotiation.c"
+        "src/negotiation-params.c"
         )
 
 file(GLOB NOISESOCKET_INCLUDE

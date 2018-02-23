@@ -6,6 +6,7 @@
 #define NOISESOCKET_NOISESOCKET_UV_H
 
 #include "noisesocket.h"
+#include "negotiation-params.h"
 #include "types.h"
 #include <uv.h>
 
@@ -16,6 +17,7 @@ ns_tcp_connect_server(uv_connect_t *req,
                       uv_tcp_t *handle,
                       const struct sockaddr *addr,
                       const ns_crypto_t *crypto_ctx,
+                      const ns_negotiation_params_t *params,
                       ns_session_ready_cb_t session_ready_cb,
                       uv_alloc_cb alloc_cb,
                       uv_read_cb read_cb);
@@ -23,6 +25,7 @@ ns_tcp_connect_server(uv_connect_t *req,
 ns_result_t
 ns_tcp_connect_client(uv_tcp_t *handle,
                       const ns_crypto_t *crypto_ctx,
+                      const ns_negotiation_params_t *params,
                       ns_session_ready_cb_t session_ready_cb,
                       uv_alloc_cb alloc_cb,
                       uv_read_cb read_cb);

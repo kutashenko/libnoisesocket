@@ -6,6 +6,7 @@
 #define NOISESOCKET_NEGOTIATION_H
 
 #include "types.h"
+#include "negotiation-params.h"
 
 typedef enum {
     NS_NEGOTIATION_NOT_STARTED,
@@ -26,6 +27,7 @@ ns_result_t
 ns_negotiation_init(void *ctx,
                     bool is_client,
                     void *base_context,
+                    const ns_negotiation_params_t *params,
                     ns_send_backend_t send_func,
                     ns_negotiation_state_change_cb_t state_change_cb);
 

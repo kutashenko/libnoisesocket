@@ -109,6 +109,7 @@ main(int argc, char **argv) {
                           &socket,
                           (const struct sockaddr *) &dest,
                           &crypto_ctx,
+                          ns_negotiation_default_params(),
                           session_ready_cb,
                           alloc_cb,
                           on_read);
