@@ -70,7 +70,7 @@ ns_negotiation_add_dh(ns_negotiation_params_t *ctx, ns_dh_t dh) {
         }
     }
 
-    if (ctx->available_dh_s_cnt >= NS_PATTERN_MAX) {
+    if (ctx->available_dh_s_cnt >= NS_DH_MAX) {
         return NS_NEGOTIATION_ERROR;
     }
 
@@ -91,7 +91,7 @@ ns_negotiation_add_cipher(ns_negotiation_params_t *ctx, ns_cipher_t cipher) {
         }
     }
 
-    if (ctx->available_ciphers_cnt >= NS_PATTERN_MAX) {
+    if (ctx->available_ciphers_cnt >= NS_CIPHER_MAX) {
         return NS_NEGOTIATION_ERROR;
     }
 
@@ -112,7 +112,7 @@ ns_negotiation_add_hash(ns_negotiation_params_t *ctx, ns_hash_t hash) {
         }
     }
 
-    if (ctx->available_hashes_cnt >= NS_PATTERN_MAX) {
+    if (ctx->available_hashes_cnt >= NS_HASH_MAX) {
         return NS_NEGOTIATION_ERROR;
     }
 
@@ -132,6 +132,12 @@ ns_negotiation_default_params() {
         ns_negotiation_set_default_cipher(&default_negotiation_params, NS_CIPHER_AES_GCM);
         ns_negotiation_set_default_dh(&default_negotiation_params, NS_DH_CURVE25519);
         ns_negotiation_set_default_hash(&default_negotiation_params, NS_HASH_BLAKE_2B);
+
+        ns_negotiation_add_cipher(&default_negotiation_params, NS_CIPHER_CHACHAPOLY);
+
+//        ns_negotiation_add_hash(&default_negotiation_params, NS_HASH_BLAKE_2S);
+        ns_negotiation_add_hash(&default_negotiation_params, NS_HASH_SHA256);
+        ns_negotiation_add_hash(&default_negotiation_params, NS_HASH_SHA512);
 
         params_ready = true;
     }

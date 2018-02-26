@@ -83,8 +83,8 @@ int noise_cipherstate_new_by_id(NoiseCipherState **state, int id)
     /* Create the CipherState object for the "id" */
     *state = 0;
     switch (id) {
-            
-#if 0
+
+#if USE_SODIUM
     case NOISE_CIPHER_CHACHAPOLY:
         *state = noise_chachapoly_new();
         break;

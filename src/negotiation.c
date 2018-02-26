@@ -82,6 +82,8 @@ static const char *
 cipher_to_str(ns_cipher_t cipher) {
     if (NS_CIPHER_AES_GCM == cipher) {
         return "AESGCM";
+    } else if (NS_CIPHER_CHACHAPOLY == cipher) {
+        return "CHACHAPOLY";
     }
 
     return NULL;
@@ -92,6 +94,9 @@ str_to_cipher(const char *str, ns_cipher_t *cipher) {
     if (compare_protocol_element(str, "AESGCM")) {
         *cipher = NS_CIPHER_AES_GCM;
         return NS_OK;
+    } else if (compare_protocol_element(str, "CHACHAPOLY")) {
+        *cipher = NS_CIPHER_CHACHAPOLY;
+        return NS_OK;
     }
 
     return NS_UNSUPPORTED_PROTOCOL_ERROR;
@@ -101,6 +106,12 @@ static const char *
 hash_to_str(ns_hash_t hash) {
     if (NS_HASH_BLAKE_2B == hash) {
         return "BLAKE2b";
+//    } else if (NS_HASH_BLAKE_2S == hash) {
+//        return "BLAKE2s";
+    } else if (NS_HASH_SHA256 == hash) {
+        return "SHA256";
+    } else if (NS_HASH_SHA512 == hash) {
+        return "SHA512";
     }
 
     return NULL;
@@ -110,6 +121,15 @@ static ns_result_t
 str_to_hash(const char *str, ns_hash_t *hash) {
     if (compare_protocol_element(str, "BLAKE2b")) {
         *hash = NS_HASH_BLAKE_2B;
+        return NS_OK;
+//    } else if (compare_protocol_element(str, "BLAKE2s")) {
+//        *hash = NS_HASH_BLAKE_2S;
+//        return NS_OK;
+    } else if (compare_protocol_element(str, "SHA256")) {
+        *hash = NS_HASH_SHA256;
+        return NS_OK;
+    } else if (compare_protocol_element(str, "SHA512")) {
+        *hash = NS_HASH_SHA512;
         return NS_OK;
     }
 
@@ -388,6 +408,8 @@ ns_parse_negotiation_response(ns_negotiation_t *ctx, const ns_packet_t *packet) 
         goto clean;
     }
 
+    DEBUG_NOISE("Accepted protocol %s.\n", message->switch_protocol);
+
     CHECK(str_to_patern(message->switch_protocol, &ctx->connection_params.patern));
     CHECK(str_to_dh(message->switch_protocol, &ctx->connection_params.dh));
     CHECK(str_to_cipher(message->switch_protocol, &ctx->connection_params.cipher));
@@ -428,7 +450,7 @@ ns_send_negotiation_response(ns_negotiation_t *ctx, bool accepted, const char *p
     ASSERT(ctx);
     ASSERT(NG(ctx)->send_func);
 
-    DEBUG_NOISE("Send negotiation response.\n");
+    DEBUG_NOISE("Send negotiation response %s.\n", protocol ? protocol : "REJECT");
 
     ns_result_t res = NS_NEGOTIATION_ERROR;
 

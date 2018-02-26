@@ -79,21 +79,26 @@ int noise_hashstate_new_by_id(NoiseHashState **state, int id)
     /* Create the HashState object for the "id" */
     *state = 0;
     switch (id) {
-//    case NOISE_HASH_BLAKE2s:
-//        *state = noise_blake2s_new();
-//        break;
+
+#if 0
+    case NOISE_HASH_BLAKE2s:
+        *state = noise_blake2s_new();
+        break;
+#endif
+
+#if USE_SODIUM
+    case NOISE_HASH_SHA256:
+        *state = noise_sha256_new();
+        break;
+
+    case NOISE_HASH_SHA512:
+        *state = noise_sha512_new();
+        break;
+#endif
 
     case NOISE_HASH_BLAKE2b:
             *state = noise_blake2b_new();
         break;
-
-//    case NOISE_HASH_SHA256:
-//        *state = noise_sha256_new();
-//        break;
-//
-//    case NOISE_HASH_SHA512:
-//        *state = noise_sha512_new();
-//        break;
 
     default:
         return NOISE_ERROR_UNKNOWN_ID;

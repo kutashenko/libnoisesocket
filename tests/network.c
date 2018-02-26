@@ -23,7 +23,7 @@ static uint8_t private_key[] = {
 static uv_loop_t *loop;
 
 static const char *_test_string = "Hello world !!!";
-//static ns_negotiation_params_t _negotiation_params;
+static ns_negotiation_params_t _client_params;
 
 #define RECEIVE_BUF_SZ (512)
 static uint8_t _receive_buffer[RECEIVE_BUF_SZ];
@@ -107,7 +107,7 @@ on_new_connection(uv_stream_t *server, int status) {
 
         ns_tcp_connect_client(client,
                               &crypto_ctx,
-                              ns_negotiation_default_params(),
+                              &_client_params,
                               server_session_ready_cb,
                               alloc_buffer,
                               echo_read);
@@ -181,6 +181,63 @@ void test_send_receive() {
     //-------------- Start server --------------
     uv_tcp_t server;
     uv_tcp_init(loop, &server);
+
+    struct sockaddr_in server_addr;
+    uv_ip4_addr(addr, port, &server_addr);
+    uv_tcp_bind(&server, (const struct sockaddr *) &server_addr, 0);
+    int r = uv_listen((uv_stream_t *) &server, 128, on_new_connection);
+
+    if (r) {
+        TEST_CHECK_(false, "Listen error!\n");
+        return;
+    }
+
+    //-------------- Start client --------------
+    uv_tcp_t socket;
+    uv_tcp_init(loop, &socket);
+
+    uv_tcp_keepalive(&socket, 1, 60);
+
+    uv_connect_t connect;
+
+    ns_crypto_t crypto_ctx;
+    crypto_ctx.public_key = public_key;
+    crypto_ctx.public_key_sz = sizeof(public_key);
+    crypto_ctx.private_key = private_key;
+    crypto_ctx.private_key_sz = sizeof(private_key);
+
+    ns_tcp_connect_server(&connect,
+                          &socket,
+                          (const struct sockaddr *) &server_addr,
+                          &crypto_ctx,
+                          ns_negotiation_default_params(),
+                          client_session_ready_cb,
+                          alloc_buffer,
+                          on_read);
+
+
+    uv_run(loop, UV_RUN_DEFAULT);
+
+    TEST_CHECK(_receive_sz &&
+               0 == memcmp(_test_string, _receive_buffer, _receive_sz));
+}
+
+void test_send_receive_different_protocols() {
+    const char *addr = "0.0.0.0";
+    const uint16_t port = 30000;
+
+    loop = uv_default_loop();
+
+    //-------------- Start server --------------
+    uv_tcp_t server;
+    uv_tcp_init(loop, &server);
+
+    memset(&_client_params, 0, sizeof(_client_params));
+
+    ns_negotiation_set_default_patern(&_client_params, NS_PATTERN_XX);
+    ns_negotiation_set_default_cipher(&_client_params, NS_CIPHER_CHACHAPOLY);
+    ns_negotiation_set_default_dh(&_client_params, NS_DH_CURVE25519);
+    ns_negotiation_set_default_hash(&_client_params, NS_HASH_SHA512);
 
     struct sockaddr_in server_addr;
     uv_ip4_addr(addr, port, &server_addr);

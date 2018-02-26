@@ -30,7 +30,6 @@ typedef enum {
     NS_HANDSHAKE_SPLIT_ERROR
 } ns_result_t;
 
-// TODO: Use function to convert types
 typedef enum {
     NS_PATTERN_XX = 9,
     NS_PATTERN_MAX = 1
@@ -42,13 +41,17 @@ typedef enum {
 } ns_dh_t;
 
 typedef enum {
+    NS_CIPHER_CHACHAPOLY = 1,
     NS_CIPHER_AES_GCM = 2,
-    NS_CIPHER_MAX = 1
+    NS_CIPHER_MAX = 2
 } ns_cipher_t;
 
 typedef enum {
+//    NS_HASH_BLAKE_2S = 1,
     NS_HASH_BLAKE_2B = 2,
-    NS_HASH_MAX = 1
+    NS_HASH_SHA256 = 3,
+    NS_HASH_SHA512 = 4,
+    NS_HASH_MAX = 3
 } ns_hash_t;
 
 typedef struct {

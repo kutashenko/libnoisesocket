@@ -23,6 +23,7 @@ static uint8_t private_key[] = {
 static void on_close(uv_handle_t *handle);
 static void on_connect(uv_connect_t *req, int status);
 static void on_write(uv_write_t *req, int status);
+static ns_negotiation_params_t _client_params;
 
 static uv_loop_t *loop;
 
@@ -105,11 +106,18 @@ main(int argc, char **argv) {
     crypto_ctx.private_key = private_key;
     crypto_ctx.private_key_sz = sizeof(private_key);
 
+    memset(&_client_params, 0, sizeof(_client_params));
+
+    ns_negotiation_set_default_patern(&_client_params, NS_PATTERN_XX);
+    ns_negotiation_set_default_cipher(&_client_params, NS_CIPHER_CHACHAPOLY);
+    ns_negotiation_set_default_dh(&_client_params, NS_DH_CURVE25519);
+    ns_negotiation_set_default_hash(&_client_params, NS_HASH_SHA512);
+
     ns_tcp_connect_server(&connect,
                           &socket,
                           (const struct sockaddr *) &dest,
                           &crypto_ctx,
-                          ns_negotiation_default_params(),
+                          &_client_params,
                           session_ready_cb,
                           alloc_cb,
                           on_read);
