@@ -8,21 +8,19 @@
 #include "noise/protobufs.h"
 
 #include <string.h>
+#include <pb_encode.h>
+#include <pb_decode.h>
+#include <negotiation.pb.h>
 #include <noisesocket/negotiation-params.h>
+#include <noisesocket/types.h>
 
 #define NG(X) ((ns_negotiation_t*)X)
 
-#define NEGOTIATION_SZ (2 + sizeof(ns_negotiation_data_t))
+#define PROTOCOL_MAX_SIZE   100
 
-#define NOISESOCKET_VERSION (1)
-
-typedef struct __attribute__((__packed__)) {
-    uint16_t version;
-    uint8_t dh;
-    uint8_t cipher;
-    uint8_t hash;
-    uint8_t pattern;
-} ns_negotiation_data_t;
+static negotiation_initial_data _negotiation_initial_data = negotiation_initial_data_init_zero;
+static bool _params_cached = false;
+const char *separator = "_";
 
 typedef struct {
     bool is_client;
@@ -31,57 +29,262 @@ typedef struct {
     ns_send_backend_t send_func;
     ns_connection_params_t connection_params;
     void *base_context;
-    uint8_t negotiation_data[NEGOTIATION_SZ];
     const ns_negotiation_params_t *params;
 } ns_negotiation_t;
 
 static bool
-is_pattern_supported(uint8_t pattern) {
-    return (NOISE_PATTERN_XX & 0xFF) == pattern;
+compare_protocol_element(const char *protocol_str, const char *required_val) {
+    ASSERT(protocol_str);
+    ASSERT(required_val);
+
+    return NULL != strnstr(protocol_str, required_val, PROTOCOL_MAX_SIZE);
 }
 
-static bool
-is_dh_supported(uint8_t dh) {
-    return (NS_DH_CURVE25519 & 0xFF) == dh;
+static const char *
+patern_to_str(ns_patern_t patern) {
+    if (NS_PATTERN_XX == patern) {
+        return "XX";
+    }
+
+    return NULL;
 }
 
-static bool
-is_cipher_supported(uint8_t cipher) {
-    return (NS_CIPHER_AES_GCM & 0xFF) == cipher;
+static ns_result_t
+str_to_patern(const char *str, ns_patern_t *patern) {
+    if (compare_protocol_element(str, "XX")) {
+        *patern = NS_PATTERN_XX;
+        return NS_OK;
+    }
+
+    return NS_UNSUPPORTED_PATERN_ERROR;
 }
 
-static bool
-is_hash_supported(uint8_t hash) {
-    return (NS_HASH_BLAKE_2B & 0xFF) == hash;
+static const char *
+dh_to_str(ns_dh_t dh) {
+    if (NS_DH_CURVE25519 == dh) {
+        return "25519";
+    }
+
+    return NULL;
 }
 
-// TODO: Pass ns_negotiation_data_t instead of buffer
+static ns_result_t
+str_to_dh(const char *str, ns_dh_t *dh) {
+    if (compare_protocol_element(str, "25519")) {
+        *dh = NS_DH_CURVE25519;
+        return NS_OK;
+    }
+
+    return NS_UNSUPPORTED_DH_ERROR;
+}
+
+static const char *
+cipher_to_str(ns_cipher_t cipher) {
+    if (NS_CIPHER_AES_GCM == cipher) {
+        return "AESGCM";
+    }
+
+    return NULL;
+}
+
+static ns_result_t
+str_to_cipher(const char *str, ns_cipher_t *cipher) {
+    if (compare_protocol_element(str, "AESGCM")) {
+        *cipher = NS_CIPHER_AES_GCM;
+        return NS_OK;
+    }
+
+    return NS_UNSUPPORTED_CIPHER_ERROR;
+}
+
+static const char *
+hash_to_str(ns_hash_t hash) {
+    if (NS_HASH_BLAKE_2B == hash) {
+        return "BLAKE2b";
+    }
+
+    return NULL;
+}
+
+static ns_result_t
+str_to_hash(const char *str, ns_hash_t *hash) {
+    if (compare_protocol_element(str, "BLAKE2b")) {
+        *hash = NS_HASH_BLAKE_2B;
+        return NS_OK;
+    }
+
+    return NS_UNSUPPORTED_HASH_ERROR;
+}
+
+static ns_result_t
+protocol_to_str(ns_patern_t patern, ns_dh_t dh,
+                ns_cipher_t cipher, ns_hash_t hash,
+                char *buf, size_t buf_sz) {
+
+    const char *patern_str = 0;
+    const char *dh_str = 0;
+    const char *cipher_str = 0;
+    const char *hash_str = 0;
+
+    const char *prefix = "Noise";
+
+    memset(buf, 0, buf_sz);
+
+    patern_str = patern_to_str(patern);
+    if (!patern_str) {
+        DEBUG_NOISE("Cannot convert patern to string %d\n", (int)patern);
+        return NS_UNSUPPORTED_PATERN_ERROR;
+    }
+
+    dh_str = dh_to_str(dh);
+    if (!dh_str) {
+        DEBUG_NOISE("Cannot convert DH to string %d\n", (int)dh);
+        return NS_UNSUPPORTED_DH_ERROR;
+    }
+
+    cipher_str = cipher_to_str(cipher);
+    if (!cipher_str) {
+        DEBUG_NOISE("Cannot convert Cipher to string %d\n", (int)cipher);
+        return NS_UNSUPPORTED_CIPHER_ERROR;
+    }
+
+    hash_str = hash_to_str(hash);
+    if (!hash_str) {
+        DEBUG_NOISE("Cannot convert Hash to string %d\n", (int)hash);
+        return NS_UNSUPPORTED_HASH_ERROR;
+    }
+
+
+    const size_t total_sz =
+            strlen(prefix) +
+            strlen(patern_str) +
+            strlen(dh_str) +
+            strlen(cipher_str) +
+            strlen(hash_str) +
+            4 * sizeof(separator); // 4 additional separators
+
+    if (total_sz <= buf_sz) {
+        DEBUG_NOISE("Cannot convert Protocol to string\n");
+        return NS_SMALL_BUFFER_ERROR;
+    }
+
+    strcat(buf, prefix),
+            strcat(buf, separator);
+    strcat(buf, patern_str),
+            strcat(buf, separator);
+    strcat(buf, dh_str),
+            strcat(buf, separator);
+    strcat(buf, cipher_str),
+            strcat(buf, separator);
+    strcat(buf, hash_str);
+
+    return NS_OK;
+}
+
+static ns_result_t
+fill_own_params(ns_negotiation_t *ctx) {
+    if (!_params_cached) {
+        const size_t protocol_str_max_sz = 40;
+        char protocol_str[protocol_str_max_sz];
+
+        CHECK_MES(protocol_to_str(ctx->params->default_patern,
+                                  ctx->params->default_dh,
+                                  ctx->params->default_cipher,
+                                  ctx->params->default_hash,
+                                  protocol_str, protocol_str_max_sz),
+                  DEBUG_NOISE("Cannot convert ptorocol to string because if small buffer\n"));
+
+        DEBUG_NOISE("Initial protocol is %s\n", protocol_str);
+
+        strlcpy(_negotiation_initial_data.initial_protocol,
+                protocol_str,
+                sizeof(_negotiation_initial_data.initial_protocol));
+        _negotiation_initial_data.switch_protocols_count = 0;
+        _negotiation_initial_data.retry_protocols_count = 0;
+
+        int i, m, n, q;
+        for (i = 0; i < ctx->params->available_paterns_cnt; ++i) {
+            for (m = 0; m < ctx->params->available_dh_s_cnt; ++m) {
+                for (n = 0; n < ctx->params->available_ciphers_cnt; ++n) {
+                    for (q = 0; q < ctx->params->available_hashes_cnt; ++q) {
+
+                        if (ctx->params->available_paterns[i] != ctx->params->default_patern
+                            || ctx->params->available_dh_s[m] != ctx->params->default_dh
+                            || ctx->params->available_ciphers[n] != ctx->params->default_cipher
+                            || ctx->params->available_hashes[q] != ctx->params->default_hash) {
+
+                            CHECK_MES(protocol_to_str(ctx->params->available_paterns[i],
+                                                      ctx->params->available_dh_s[m],
+                                                      ctx->params->available_ciphers[n],
+                                                      ctx->params->available_hashes[q],
+                                                      protocol_str, protocol_str_max_sz),
+                                      DEBUG_NOISE("Cannot convert ptorocol to string because if small buffer\n"));
+
+                            strcpy(_negotiation_initial_data.switch_protocols[_negotiation_initial_data.switch_protocols_count],
+                                   protocol_str);
+                            ++_negotiation_initial_data.switch_protocols_count;
+
+                            DEBUG_NOISE("Available protocol is %s\n", protocol_str);
+                        }
+                    }
+                }
+            }
+        }
+        _params_cached = true;
+    }
+
+    return NS_OK;
+}
+
 static ns_result_t
 fill_negotiation(ns_negotiation_t *ctx,
                  uint8_t * packet,
                  size_t buf_sz,
                  size_t *data_sz) {
     ASSERT(ctx);
+    ASSERT(ctx->params);
     ASSERT(packet);
     ASSERT(buf_sz);
     ASSERT(data_sz);
 
-    *data_sz = NEGOTIATION_SZ;
+    fill_own_params(ctx);
 
-    if (buf_sz < *data_sz) return NS_SMALL_BUFFER_ERROR;
+    // Create a stream that will write to our buffer.
+    pb_ostream_t stream = pb_ostream_from_buffer(&packet[2], buf_sz - 2);
 
-    set_net_uint16(packet, sizeof(ns_negotiation_data_t));
+    // Now we are ready to encode the message !
+    int status = pb_encode(&stream, negotiation_initial_data_fields, &_negotiation_initial_data);
+    *data_sz = stream.bytes_written;
 
-    ns_negotiation_data_t *negotiation_data;
-    negotiation_data = (ns_negotiation_data_t*)&packet[2];
+    // Then just check for any errors ...
+    if (!status) {
+        DEBUG_NOISE("Encoding failed: %s\n", PB_GET_ERROR(&stream));
+        return NS_SMALL_BUFFER_ERROR;
+    }
 
-    negotiation_data->version = htons(NOISESOCKET_VERSION);
-    negotiation_data->dh = ctx->connection_params.dh;
-    negotiation_data->cipher = ctx->connection_params.cipher;
-    negotiation_data->hash = ctx->connection_params.hash;
-    negotiation_data->pattern = ctx->connection_params.patern;
+    set_net_uint16(packet, *data_sz);
+    *data_sz += 2;
 
     return NS_OK;
+}
+
+static bool
+is_protocol_available(const char *protocol) {
+    ASSERT(protocol);
+    ASSERT(*protocol);
+
+    if (0 == strncmp(protocol, _negotiation_initial_data.initial_protocol, PROTOCOL_MAX_SIZE)) {
+        return true;
+    }
+
+    int i;
+    for (i = 0; i < _negotiation_initial_data.switch_protocols_count; ++i) {
+        if (0 == strncmp(protocol, _negotiation_initial_data.switch_protocols[i], PROTOCOL_MAX_SIZE)) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 static ns_result_t
@@ -90,54 +293,53 @@ ns_parse_negotiation_data(ns_negotiation_t *ctx, const ns_packet_t *packet) {
     ASSERT(ctx);
     ASSERT(packet);
 
+    ns_result_t res = NS_NEGOTIATION_ERROR;
+
     DEBUG_NOISE("Process negotiation data.\n");
 
-    if (ntohs(packet->size) != sizeof(ns_negotiation_data_t)) {
-        DEBUG_NOISE("Cannot parse negotiation data.\n");
-        return NS_NEGOTIATION_ERROR;
+    fill_own_params(ctx);
+
+    negotiation_initial_data *message = calloc(1, sizeof(negotiation_initial_data));
+
+    print_buf("Incoming buffer", packet->data, ntohs(packet->size));
+
+    // Create a stream that reads from the buffer.
+    pb_istream_t stream = pb_istream_from_buffer(packet->data, ntohs(packet->size));
+
+    // Now we are ready to decode the message.
+    int status = pb_decode(&stream, negotiation_initial_data_fields, message);
+
+    // Check for errors ...
+    if (!status) {
+        DEBUG_NOISE("Decoding failed: %s\n", PB_GET_ERROR(&stream));
+        goto clean;
     }
 
-    const ns_negotiation_data_t * negotiation_data;
-    negotiation_data = (ns_negotiation_data_t *)packet->data;
-
-    if (NOISESOCKET_VERSION != ntohs(negotiation_data->version)) {
-        DEBUG_NOISE ("Unsupported noise socket VERSION.\n");
-        return NS_VERSION_ERROR;
+    const char *accepted_protocol = NULL;
+    if (is_protocol_available(message->initial_protocol)) {
+        accepted_protocol = message->initial_protocol;
+    } else {
+        int i;
+        for (i = 0; i < message->switch_protocols_count; ++i) {
+            if (is_protocol_available(message->switch_protocols[i])) {
+                accepted_protocol = message->switch_protocols[i];
+            }
+        }
     }
 
-    // Check requested capabilities
-    if (!is_pattern_supported(negotiation_data->pattern)) {
-        DEBUG_NOISE ("Unsupported noise pattern : %d.\n", (int)negotiation_data->pattern);
-        return NS_UNSUPPORTED_PATERN_ERROR;
+    if (accepted_protocol) {
+        CHECK(str_to_patern(accepted_protocol, &ctx->connection_params.patern));
+        CHECK(str_to_dh(accepted_protocol, &ctx->connection_params.dh));
+        CHECK(str_to_cipher(accepted_protocol, &ctx->connection_params.cipher));
+        CHECK(str_to_hash(accepted_protocol, &ctx->connection_params.hash));
+        res = NS_OK;
     }
 
-    if (!is_dh_supported(negotiation_data->dh)) {
-        DEBUG_NOISE ("Unsupported noise DH.\n");
-        return NS_UNSUPPORTED_DH_ERROR;
-    }
+clean:
 
-    if (!is_cipher_supported(negotiation_data->cipher)) {
-        DEBUG_NOISE ("Unsupported noise CIPHER.\n");
-        return NS_UNSUPPORTED_CIPHER_ERROR;
-    }
+    free(message);
 
-    if (!is_hash_supported(negotiation_data->hash)) {
-        DEBUG_NOISE ("Unsupported noise HASH.\n");
-        return NS_UNSUPPORTED_HASH_ERROR;
-    }
-
-    ctx->connection_params.hash = (ns_hash_t) negotiation_data->hash;
-    ctx->connection_params.dh = (ns_dh_t) negotiation_data->dh;
-    ctx->connection_params.cipher = (ns_cipher_t) negotiation_data->cipher;
-    ctx->connection_params.patern = (ns_patern_t) negotiation_data->pattern;
-
-    size_t sz;
-    fill_negotiation(ctx,
-                     ctx->negotiation_data,
-                     NEGOTIATION_SZ,
-                     &sz);
-
-    return NS_OK;
+    return res;
 }
 
 static ns_result_t
@@ -149,12 +351,14 @@ ns_send_negotiation_data(ns_negotiation_t *ctx) {
 
     size_t negotiation_sz = 0;
 
+    uint8_t negotiation_data[1024];
+
     CHECK (fill_negotiation(ctx,
-                            ctx->negotiation_data,
-                            NEGOTIATION_SZ,
+                            negotiation_data,
+                            sizeof(negotiation_data),
                             &negotiation_sz));
 
-    ctx->send_func(ctx->base_context, ctx->negotiation_data, NEGOTIATION_SZ);
+    ctx->send_func(ctx->base_context, negotiation_data, negotiation_sz);
 
     return NS_OK;
 }
@@ -286,10 +490,10 @@ ns_negotiation_ctx_size() {
 const uint8_t *
 ns_negotiation_initial_data(void *ctx) {
     ASSERT(ctx);
-    return NG(ctx)->negotiation_data;
+    return (uint8_t *)&NG(ctx)->connection_params;
 }
 
 size_t
 ns_negotiation_initial_data_sz(void *ctx) {
-    return NEGOTIATION_SZ;
+    return sizeof(ns_connection_params_t);
 }

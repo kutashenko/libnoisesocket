@@ -62,7 +62,7 @@ typedef struct {
     size_t private_key_sz;
 } ns_crypto_t;
 
-typedef struct {
+typedef struct __attribute__((__packed__)) {
     ns_patern_t patern;
     ns_dh_t dh;
     ns_cipher_t cipher;
