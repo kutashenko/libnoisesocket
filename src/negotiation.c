@@ -56,7 +56,7 @@ str_to_patern(const char *str, ns_patern_t *patern) {
         return NS_OK;
     }
 
-    return NS_UNSUPPORTED_PATERN_ERROR;
+    return NS_UNSUPPORTED_PROTOCOL_ERROR;
 }
 
 static const char *
@@ -75,7 +75,7 @@ str_to_dh(const char *str, ns_dh_t *dh) {
         return NS_OK;
     }
 
-    return NS_UNSUPPORTED_DH_ERROR;
+    return NS_UNSUPPORTED_PROTOCOL_ERROR;
 }
 
 static const char *
@@ -94,7 +94,7 @@ str_to_cipher(const char *str, ns_cipher_t *cipher) {
         return NS_OK;
     }
 
-    return NS_UNSUPPORTED_CIPHER_ERROR;
+    return NS_UNSUPPORTED_PROTOCOL_ERROR;
 }
 
 static const char *
@@ -113,7 +113,7 @@ str_to_hash(const char *str, ns_hash_t *hash) {
         return NS_OK;
     }
 
-    return NS_UNSUPPORTED_HASH_ERROR;
+    return NS_UNSUPPORTED_PROTOCOL_ERROR;
 }
 
 static ns_result_t
@@ -133,25 +133,25 @@ protocol_to_str(ns_patern_t patern, ns_dh_t dh,
     patern_str = patern_to_str(patern);
     if (!patern_str) {
         DEBUG_NOISE("Cannot convert patern to string %d\n", (int)patern);
-        return NS_UNSUPPORTED_PATERN_ERROR;
+        return NS_UNSUPPORTED_PROTOCOL_ERROR;
     }
 
     dh_str = dh_to_str(dh);
     if (!dh_str) {
         DEBUG_NOISE("Cannot convert DH to string %d\n", (int)dh);
-        return NS_UNSUPPORTED_DH_ERROR;
+        return NS_UNSUPPORTED_PROTOCOL_ERROR;
     }
 
     cipher_str = cipher_to_str(cipher);
     if (!cipher_str) {
         DEBUG_NOISE("Cannot convert Cipher to string %d\n", (int)cipher);
-        return NS_UNSUPPORTED_CIPHER_ERROR;
+        return NS_UNSUPPORTED_PROTOCOL_ERROR;
     }
 
     hash_str = hash_to_str(hash);
     if (!hash_str) {
         DEBUG_NOISE("Cannot convert Hash to string %d\n", (int)hash);
-        return NS_UNSUPPORTED_HASH_ERROR;
+        return NS_UNSUPPORTED_PROTOCOL_ERROR;
     }
 
 
@@ -288,7 +288,8 @@ is_protocol_available(const char *protocol) {
 }
 
 static ns_result_t
-ns_parse_negotiation_data(ns_negotiation_t *ctx, const ns_packet_t *packet) {
+ns_parse_negotiation_data(ns_negotiation_t *ctx, const ns_packet_t *packet,
+                          char *protocol_res, size_t buf_sz) {
 
     ASSERT(ctx);
     ASSERT(packet);
@@ -300,8 +301,6 @@ ns_parse_negotiation_data(ns_negotiation_t *ctx, const ns_packet_t *packet) {
     fill_own_params(ctx);
 
     negotiation_initial_data *message = calloc(1, sizeof(negotiation_initial_data));
-
-    print_buf("Incoming buffer", packet->data, ntohs(packet->size));
 
     // Create a stream that reads from the buffer.
     pb_istream_t stream = pb_istream_from_buffer(packet->data, ntohs(packet->size));
@@ -332,8 +331,69 @@ ns_parse_negotiation_data(ns_negotiation_t *ctx, const ns_packet_t *packet) {
         CHECK(str_to_dh(accepted_protocol, &ctx->connection_params.dh));
         CHECK(str_to_cipher(accepted_protocol, &ctx->connection_params.cipher));
         CHECK(str_to_hash(accepted_protocol, &ctx->connection_params.hash));
+
+        if (strlen(accepted_protocol) > buf_sz) {
+            DEBUG_NOISE("Cannot copy acceped protocol.\n");
+            res = NS_SMALL_BUFFER_ERROR;
+            goto clean;
+        }
+
+        strcpy(protocol_res, accepted_protocol);
+
         res = NS_OK;
+    } else {
+        res = NS_UNSUPPORTED_PROTOCOL_ERROR;
     }
+
+clean:
+
+    free(message);
+
+    return res;
+}
+
+static ns_result_t
+ns_parse_negotiation_response(ns_negotiation_t *ctx, const ns_packet_t *packet) {
+
+    ASSERT(ctx);
+    ASSERT(packet);
+
+    ns_result_t res = NS_NEGOTIATION_ERROR;
+
+    DEBUG_NOISE("Process negotiation response.\n");
+
+    negotiation_response_data *message = calloc(1, sizeof(negotiation_response_data));
+
+    // Create a stream that reads from the buffer.
+    pb_istream_t stream = pb_istream_from_buffer(packet->data, ntohs(packet->size));
+
+    // Now we are ready to decode the message.
+    int status = pb_decode(&stream, negotiation_response_data_fields, message);
+
+    // Check for errors ...
+    if (!status) {
+        DEBUG_NOISE("Decoding failed: %s\n", PB_GET_ERROR(&stream));
+        goto clean;
+    }
+
+    if (!message->accept || !message->switch_protocol[0]) {
+        DEBUG_NOISE("Server rejected connection.\n");
+        res = NS_NEGOTIATION_REJECT_FROM_SERVER;
+        goto clean;
+    }
+
+    if (!is_protocol_available(message->switch_protocol)) {
+        DEBUG_NOISE("Server requests unsupported protocol.\n");
+        res = NS_UNSUPPORTED_PROTOCOL_ERROR;
+        goto clean;
+    }
+
+    CHECK(str_to_patern(message->switch_protocol, &ctx->connection_params.patern));
+    CHECK(str_to_dh(message->switch_protocol, &ctx->connection_params.dh));
+    CHECK(str_to_cipher(message->switch_protocol, &ctx->connection_params.cipher));
+    CHECK(str_to_hash(message->switch_protocol, &ctx->connection_params.hash));
+
+    res = NS_OK;
 
 clean:
 
@@ -363,6 +423,54 @@ ns_send_negotiation_data(ns_negotiation_t *ctx) {
     return NS_OK;
 }
 
+static ns_result_t
+ns_send_negotiation_response(ns_negotiation_t *ctx, bool accepted, const char *protocol) {
+    ASSERT(ctx);
+    ASSERT(NG(ctx)->send_func);
+
+    DEBUG_NOISE("Send negotiation response.\n");
+
+    ns_result_t res = NS_NEGOTIATION_ERROR;
+
+    const size_t buf_sz = 1024;
+    uint8_t *buf = malloc(buf_sz);
+
+    negotiation_response_data message = negotiation_response_data_init_zero;
+
+    // Create a stream that will write to our buffer.
+    pb_ostream_t stream = pb_ostream_from_buffer(&buf[2], buf_sz - 2);
+
+    message.accept = accepted;
+    if (accepted) {
+        if (strnlen(protocol, PROTOCOL_MAX_SIZE) > sizeof(message.switch_protocol)) {
+            DEBUG_NOISE("Cannot create negotiation response because of wrong Protocol string.\n");
+            goto clean;
+        }
+        strcpy(message.switch_protocol, protocol);
+    }
+
+    // Now we are ready to encode the message !
+    int status = pb_encode(&stream, negotiation_response_data_fields, &message);
+
+    // Then just check for any errors ...
+    if (!status) {
+        DEBUG_NOISE("Encoding failed: %s\n", PB_GET_ERROR(&stream));
+        res = NS_SMALL_BUFFER_ERROR;
+        goto clean;
+    }
+
+    set_net_uint16(buf, stream.bytes_written);
+
+    ctx->send_func(ctx->base_context, buf, stream.bytes_written + 2);
+
+    res = NS_OK;
+
+clean:
+    free(buf);
+
+    return res;
+}
+
 static void
 publish_state_change(ns_negotiation_t *ctx, ns_result_t result) {
             ASSERT(ctx);
@@ -378,17 +486,20 @@ publish_state_change(ns_negotiation_t *ctx, ns_result_t result) {
 
 static ns_result_t
 negotiation_process_client(ns_negotiation_t *ctx, const ns_packet_t *packet) {
+    ns_result_t res;
     switch (ctx->state) {
         case NS_NEGOTIATION_NOT_STARTED:
-
-            // Set default params
-            ctx->connection_params.hash = ctx->params->default_hash;
-            ctx->connection_params.dh = ctx->params->default_dh;
-            ctx->connection_params.cipher = ctx->params->default_cipher;
-            ctx->connection_params.patern = ctx->params->default_patern;
-
-            ns_result_t res;
             res = ns_send_negotiation_data(ctx);
+            if (NS_OK == res) {
+                ctx->state = NS_NEGOTIATION_IN_PROGRESS;//NS_NEGOTIATION_DONE;
+            }
+            publish_state_change(ctx, res);
+
+            return NS_OK;
+
+        case NS_NEGOTIATION_IN_PROGRESS:
+            res = ns_parse_negotiation_response(ctx, packet);
+
             if (NS_OK == res) {
                 ctx->state = NS_NEGOTIATION_DONE;
             }
@@ -399,8 +510,6 @@ negotiation_process_client(ns_negotiation_t *ctx, const ns_packet_t *packet) {
         default: {
             publish_state_change(ctx, NS_NEGOTIATION_ERROR);
         }
-        case NS_NEGOTIATION_IN_PROGRESS:break;
-        case NS_NEGOTIATION_DONE:break;
     }
     return NS_NEGOTIATION_ERROR;
 }
@@ -411,13 +520,17 @@ negotiation_process_server(ns_negotiation_t *ctx, const ns_packet_t *packet) {
     ASSERT(packet);
 
     ns_result_t res;
+    char accepted_protocol[PROTOCOL_MAX_SIZE];
     switch (ctx->state) {
         case NS_NEGOTIATION_NOT_STARTED:
-            res = ns_parse_negotiation_data(ctx, packet);
 
-            if (NS_OK == res) {
-                ctx->state = NS_NEGOTIATION_DONE;
-            }
+            res = ns_parse_negotiation_data(ctx, packet, accepted_protocol, PROTOCOL_MAX_SIZE);
+
+            res = ns_send_negotiation_response(ctx,
+                                               NS_OK == res,
+                                               accepted_protocol);
+
+            ctx->state = NS_NEGOTIATION_DONE;
             publish_state_change(ctx, res);
 
             break;
