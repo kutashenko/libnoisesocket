@@ -6,6 +6,7 @@
 #include <noisesocket/types.h>
 
 #include "handshake.h"
+#include "signstate.h"
 #include "helper.h"
 #include "debug.h"
 #include "noise/protocol.h"
@@ -116,6 +117,27 @@ init_handshake(ns_handshake_t *ctx) {
                                     ctx->crypto_ctx.public_key, noise_dhstate_get_private_key_length(dh));
     if (err != NOISE_ERROR_NONE) {
         DEBUG_NOISE("set client key pair ERROR %d\n", err);
+        return NS_HANDSHAKE_ERROR;
+    }
+
+    NoiseSignState *signstate;
+    signstate = noise_handshakestate_get_signstate(ctx->noise);
+
+    // Set Root public keys
+    err = noise_signstate_set_public_key(signstate,
+                                         ctx->crypto_ctx.root_public_key,
+                                         noise_signstate_get_public_key_length(signstate));
+    if (err != NOISE_ERROR_NONE) {
+        DEBUG_NOISE("set root public key ERROR %d\n", err);
+        return NS_HANDSHAKE_ERROR;
+    }
+
+    // Set Root signature
+    err = noise_signstate_set_root_signature(signstate,
+                                             ctx->crypto_ctx.root_signature,
+                                             noise_signstate_get_signature_length(signstate));
+    if (err != NOISE_ERROR_NONE) {
+        DEBUG_NOISE("set root signature ERROR %d\n", err);
         return NS_HANDSHAKE_ERROR;
     }
 

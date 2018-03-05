@@ -24,6 +24,7 @@
 #define NOISE_HANDSHAKESTATE_H
 
 #include <noise/protocol/symmetricstate.h>
+#include <noise/protocol/signstate.h>
 #include <noise/protocol/dhstate.h>
 
 #ifdef __cplusplus
@@ -31,6 +32,7 @@ extern "C" {
 #endif
 
 typedef struct NoiseHandshakeState_s NoiseHandshakeState;
+typedef void (*VerifySender)(NoiseHandshakeState *state);
 
 int noise_handshakestate_new_by_id
     (NoiseHandshakeState **state, const NoiseProtocolId *protocol_id, int role);
@@ -48,10 +50,14 @@ NoiseDHState *noise_handshakestate_get_fixed_ephemeral_dh
     (NoiseHandshakeState *state);
 NoiseDHState *noise_handshakestate_get_fixed_hybrid_dh
     (NoiseHandshakeState *state);
+NoiseSignState *noise_handshakestate_get_signstate
+        (NoiseHandshakeState *state);
 int noise_handshakestate_needs_pre_shared_key(const NoiseHandshakeState *state);
 int noise_handshakestate_has_pre_shared_key(const NoiseHandshakeState *state);
 int noise_handshakestate_set_pre_shared_key
     (NoiseHandshakeState *state, const uint8_t *key, size_t key_len);
+int noise_handshakestate_set_sender_verification
+        (NoiseHandshakeState *state, VerifySender verifycation_cb);
 int noise_handshakestate_set_prologue
     (NoiseHandshakeState *state, const void *prologue, size_t prologue_len);
 int noise_handshakestate_needs_local_keypair(const NoiseHandshakeState *state);

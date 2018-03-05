@@ -5,14 +5,11 @@
 #include "debug.h"
 #include "helper.h"
 #include "negotiation.h"
-#include "noise/protobufs.h"
 
 #include <string.h>
 #include <pb_encode.h>
 #include <pb_decode.h>
 #include <negotiation.pb.h>
-#include <noisesocket/negotiation-params.h>
-#include <noisesocket/types.h>
 
 #define NG(X) ((ns_negotiation_t*)X)
 

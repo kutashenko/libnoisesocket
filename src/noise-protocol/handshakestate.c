@@ -359,6 +359,8 @@ int noise_handshakestate_free(NoiseHandshakeState *state)
         noise_dhstate_free(state->dh_fixed_ephemeral);
     if (state->dh_fixed_hybrid)
         noise_dhstate_free(state->dh_fixed_hybrid);
+    if (state->signstate)
+        noise_signstate_free(state->signstate);
     noise_free(state->prologue, state->prologue_len);
 
     /* Clean and free the memory for "state" */
@@ -519,6 +521,32 @@ NoiseDHState *noise_handshakestate_get_fixed_hybrid_dh
 }
 
 /**
+ * \brief Gets the SignState object that contains the signature worker.
+ *
+ * \param state The HandshakeState object.
+ *
+ * \return Returns a pointer to the SignState object for the signature worker,
+ * or NULL if the system is out of memory,
+ * \a state is NULL, or \a state does not support signature worker.
+ */
+NoiseSignState *noise_handshakestate_get_signstate
+        (NoiseHandshakeState *state)
+{
+    if (!state)
+        return 0;
+
+    if (!state->signstate) {
+        if (noise_signstate_new_by_id
+                    (&(state->signstate), NOISE_SIGN_ED25519)
+            != NOISE_ERROR_NONE) {
+            return 0;
+        }
+    }
+
+    return state->signstate;
+}
+
+/**
  * \brief Determine if a HandshakeState object requires a pre shared key.
  *
  * \param state The HandshakeState object.
@@ -592,6 +620,27 @@ int noise_handshakestate_set_pre_shared_key
     /* Record the pre-shared key for use in noise_handshakestate_start() */
     memcpy(state->pre_shared_key, key, key_len);
     state->pre_shared_key_len = key_len;
+    return NOISE_ERROR_NONE;
+}
+
+/**
+ * \brief Sets the sender verifycation callback.
+ *
+ * \param state The HandshakeState object.
+ * \param verifycation_cb Points to the Sender verification function.
+ *
+ * \return NOISE_ERROR_NONE on success.
+ * \return NOISE_ERROR_INVALID_PARAM if \a state or \a key is NULL.
+ */
+int noise_handshakestate_set_sender_verification
+        (NoiseHandshakeState *state, VerifySender verifycation_cb)
+{
+    /* Validate the parameters */
+    if (!state)
+        return NOISE_ERROR_INVALID_PARAM;
+
+    state->verify_sender = verifycation_cb;
+
     return NOISE_ERROR_NONE;
 }
 
@@ -1235,6 +1284,10 @@ static int noise_handshakestate_write
                 return NOISE_ERROR_INVALID_LENGTH;
             memcpy(rest.data, state->dh_local_static->public_key, len);
             rest.size += len;
+
+            memcpy(&rest.data[len], state->signstate->root_signature, state->signstate->signature_len);
+            rest.size += state->signstate->signature_len;
+
             err = noise_symmetricstate_encrypt_and_hash(state->symmetric, &rest);
             if (err != NOISE_ERROR_NONE)
                 break;
@@ -1499,7 +1552,9 @@ static int noise_handshakestate_read
             if (!state->dh_remote_static)
                 return NOISE_ERROR_INVALID_STATE;
             mac_len = noise_symmetricstate_get_mac_length(state->symmetric);
-            len = state->dh_remote_static->public_key_len + mac_len;
+            len = state->dh_remote_static->public_key_len
+                  + state->signstate->signature_len
+                  + mac_len;
             if (msg.size < len)
                 return NOISE_ERROR_INVALID_LENGTH;
             msg2.data = msg.data;
@@ -1510,9 +1565,23 @@ static int noise_handshakestate_read
             if (err != NOISE_ERROR_NONE)
                 break;
             err = noise_dhstate_set_public_key
-                (state->dh_remote_static, msg2.data, msg2.size);
+                (state->dh_remote_static, msg2.data, state->dh_remote_static->public_key_len);
             if (err != NOISE_ERROR_NONE)
                 break;
+
+            err = noise_signstate_verify
+                    (state->signstate,
+                     msg2.data, state->dh_remote_static->public_key_len,
+                     &msg2.data[state->dh_remote_static->public_key_len],
+                     state->signstate->signature_len);
+
+            if (err != NOISE_ERROR_NONE)
+                break;
+
+            if (state->verify_sender) {
+                state->verify_sender(state);
+            }
+
             msg.data += len;
             msg.size -= len;
             msg.max_size -= len;

@@ -60,6 +60,12 @@ typedef struct {
 
     const uint8_t *private_key;
     size_t private_key_sz;
+
+    const uint8_t *root_public_key;
+    size_t root_public_key_sz;
+
+    const uint8_t *root_signature;
+    size_t root_signature_sz;
 } ns_crypto_t;
 
 typedef struct __attribute__((__packed__)) {

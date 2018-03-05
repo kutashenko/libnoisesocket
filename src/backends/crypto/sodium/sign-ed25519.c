@@ -31,6 +31,7 @@ typedef struct
         struct {
             uint8_t private_key[32];
             uint8_t public_key[32];
+            uint8_t root_signature[crypto_sign_ed25519_SECRETKEYBYTES];
         };
         uint8_t skpk[crypto_sign_ed25519_SECRETKEYBYTES]; // sodium uses this format
     };
@@ -103,6 +104,7 @@ NoiseSignState *noise_ed25519_new(void)
     state->parent.signature_len = 64;
     state->parent.private_key = state->private_key;
     state->parent.public_key = state->public_key;
+    state->parent.root_signature = state->root_signature;
     state->parent.generate_keypair = noise_ed25519_generate_keypair;
     state->parent.validate_keypair = noise_ed25519_validate_keypair;
     state->parent.validate_public_key = noise_ed25519_validate_public_key;

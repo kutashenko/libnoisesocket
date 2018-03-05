@@ -324,6 +324,37 @@ int noise_signstate_set_keypair
 }
 
 /**
+ * \brief Sets the Root Signature within a SignState object.
+ *
+ * \param state The SignState object.
+ * \param signature Points to the Root Signature.
+ * \param signature_len The Root Signature length in bytes.
+ *
+ * \return NOISE_ERROR on success.
+ * \return NOISE_ERROR_INVALID_PARAM if \a state or \a signature is NULL.
+ * \return NOISE_ERROR_INVALID_LENGTH if either \a signature_len is
+ * incorrect for the algorithm.
+ * \return NOISE_ERROR_INVALID_SIGNATURE if \a root signature is not valid.
+ *
+ * \sa noise_signstate_get_root_signature()
+ */
+int noise_signstate_set_root_signature
+        (NoiseSignState *state, const uint8_t *signature, size_t signature_len)
+{
+    int err;
+
+    /* Validate the parameters */
+    if (!state || !signature || !signature_len)
+        return NOISE_ERROR_INVALID_PARAM;
+    if (signature_len != state->signature_len)
+        return NOISE_ERROR_INVALID_LENGTH;
+
+    /* Copy the signature into place */
+    memcpy(state->root_signature, signature, state->signature_len);
+    return NOISE_ERROR_NONE;
+}
+
+/**
  * \brief Sets the keypair within a SignState object based on a private key only.
  *
  * \param state The SignState object.
@@ -492,6 +523,28 @@ int noise_signstate_get_public_key
     /* Copy the public key out */
     memcpy(public_key, state->public_key, public_key_len);
     return NOISE_ERROR_NONE;
+}
+
+/**
+ * \brief Gets the Root Signature value from a SignState object.
+ *
+ * \param state The SignState object.
+ * \param signature The buffer to receive the Root Signature value.
+ * \param signature_len The Root Signature length in bytes.
+ *
+ * \return NOISE_ERROR_NONE on success.
+ * \return NOISE_ERROR_INVALID_PARAM if \a state or \a signature is NULL.
+ * \return NOISE_ERROR_INVALID_LENGTH if \a signature_len is incorrect
+ * for this algorithm.
+ * \return NOISE_ERROR_INVALID_STATE if the Root Signature has not been
+ * set on the SignState object yet.
+ *
+ * \sa noise_signstate_set_root_signature(), noise_signstate_get_signature_length()
+ */
+int noise_signstate_get_root_signature
+        (NoiseSignState *state, const uint8_t *signature, size_t signature_len)
+{
+    return NOISE_ERROR_INVALID_SIGNATURE;
 }
 
 /**

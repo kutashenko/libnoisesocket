@@ -76,8 +76,9 @@ add_library(
 target_include_directories (noise-protocol
     PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../../include>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../../include/noise>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../../include/noise/protocol>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../../include/noisesocket/private>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../../include/noisesocket/private/noise>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../../include/noisesocket/private/noise/protocol>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     sodium_INCLUDE_DIR
 )

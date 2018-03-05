@@ -287,6 +287,22 @@ struct NoiseDHState_s
         (NoiseDHState *state, const uint8_t *private_key);
 
     /**
+     * \brief Sets a root info.
+     *
+     * \param state Points to the DHState.
+     * \param signature Points to the root signature.
+     *
+     * \return NOISE_ERROR_NONE if the keypair is valid.
+     * \return NOISE_ERROR_INVALID_PRIVATE_KEY if there is something wrong
+     * with the private key.
+     * \return NOISE_ERROR_INVALID_PUBLIC_KEY if there is something wrong
+     * with the public key.
+     */
+    int (*set_root_info)
+            (NoiseDHState *state, const uint8_t *private_key,
+             const uint8_t *public_key);
+
+    /**
      * \brief Validates a public key.
      *
      * \param state Points to the DHState.
@@ -384,6 +400,9 @@ struct NoiseSignState_s
 
     /** \brief Points to the public key in the subclass state */
     uint8_t *public_key;
+
+    /** \brief Points to the root signature in the subclass state */
+    uint8_t *root_signature;
 
     /**
      * \brief Generates a new key pair for this digital signature algorithm.
@@ -572,6 +591,9 @@ struct NoiseHandshakeState_s
     /** \brief Points to the object for the fixed hybrid forward secrecy test key */
     NoiseDHState *dh_fixed_hybrid;
 
+    /** \brief Points to the object for the signature state */
+    NoiseSignState *signstate;
+
     /** \brief Pre-shared key value */
     uint8_t pre_shared_key[NOISE_PSK_LEN];
 
@@ -583,6 +605,13 @@ struct NoiseHandshakeState_s
 
     /** \brief Length of the prologue value in bytes */
     size_t prologue_len;
+
+    /**
+    * \brief Verify sender callback.
+    *
+    * \param state Points to the SignState.
+    */
+    VerifySender verify_sender;
 };
 
 /* Handshake message pattern tokens (must be single-byte values) */
