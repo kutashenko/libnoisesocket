@@ -53,6 +53,11 @@ extern "C" {
 #define NOISE_PSK_LEN 32
 
 /**
+ * \brief Max len of ID.
+ */
+#define NOISE_ID_LEN 64
+
+/**
  * \brief Internal structure of the NoiseCipherState type.
  */
 struct NoiseCipherState_s
@@ -605,6 +610,9 @@ struct NoiseHandshakeState_s
 
     /** \brief Length of the prologue value in bytes */
     size_t prologue_len;
+
+    /** \brief Points to the id value */
+    uint8_t id[NOISE_ID_LEN];
 
     /**
     * \brief Verify sender callback.

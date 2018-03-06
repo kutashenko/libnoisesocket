@@ -102,6 +102,15 @@ session_ready_cb(uv_tcp_t *handle, ns_result_t result) {
     uv_write(&request, (uv_stream_t*)handle, &buf, 1, on_write);
 }
 
+static int
+verify_sender(void * empty, const uint8_t *id,
+              const uint8_t *public_key, size_t public_key_len) {
+    printf("Verify server\n");
+    printf("    Sender ID: %s.\n", (const char*)id);
+    print_buf("    Public key:", public_key, public_key_len);
+    return 0;
+}
+
 int
 main(int argc, char **argv) {
     loop = uv_default_loop();
@@ -123,6 +132,7 @@ main(int argc, char **argv) {
     crypto_ctx.private_key_sz = sizeof(private_key);
     crypto_ctx.root_public_key = root_public_key;
     crypto_ctx.root_public_key_sz = sizeof(root_public_key);
+    strcpy((char*)crypto_ctx.id, "CLIENT");
 
     uint8_t root_signature[64];
     crypto_sign_ed25519_detached(root_signature, NULL, public_key, sizeof(public_key), root_private_key);
@@ -144,7 +154,8 @@ main(int argc, char **argv) {
                           &_client_params,
                           session_ready_cb,
                           alloc_cb,
-                          on_read);
+                          on_read,
+                          verify_sender);
 
     uv_run(loop, UV_RUN_DEFAULT);
 }

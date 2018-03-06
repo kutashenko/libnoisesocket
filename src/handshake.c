@@ -22,6 +22,8 @@ typedef struct {
     ns_crypto_t crypto_ctx;
     ns_connection_params_t connection_params;
 
+    ns_verify_sender_cb_t verify_sender_cb;
+
     ns_handshake_state_change_cb_t state_change_cb;
     ns_send_backend_t send_func;
 
@@ -56,7 +58,21 @@ create_handshake(ns_handshake_t *ctx) {
                                          ctx->is_client ? NOISE_ROLE_INITIATOR : NOISE_ROLE_RESPONDER);
 
     if (NOISE_ERROR_NONE != err) {
-        DEBUG_NOISE("Noise handshake can't be created\n");
+        DEBUG_NOISE("Noise handshake can't be created.\n");
+        return NS_HANDSHAKE_ERROR;
+    }
+
+    err =  noise_handshakestate_set_id(ctx->noise, ctx->crypto_ctx.id);
+    if (NOISE_ERROR_NONE != err) {
+        DEBUG_NOISE("Noise handshake can't be created. Cannot set Own id.\n");
+        return NS_HANDSHAKE_ERROR;
+    }
+
+    err = noise_handshakestate_set_sender_verification(
+            ctx->noise, (VerifySender)ctx->verify_sender_cb);
+
+    if (NOISE_ERROR_NONE != err) {
+        DEBUG_NOISE("Noise handshake can't be created. Cannot set sender verification callback.\n");
         return NS_HANDSHAKE_ERROR;
     }
 
@@ -342,7 +358,8 @@ ns_handshake_init(void *ctx,
                   void *base_context,
                   const ns_crypto_t *crypto_ctx,
                   ns_send_backend_t send_func,
-                  ns_handshake_state_change_cb_t state_change_cb) {
+                  ns_handshake_state_change_cb_t state_change_cb,
+                  ns_verify_sender_cb_t verify_sender_cb) {
 
     ASSERT(ctx);
     ASSERT(crypto_ctx);
@@ -354,6 +371,7 @@ ns_handshake_init(void *ctx,
     HS(ctx)->state_change_cb = state_change_cb;
     HS(ctx)->send_func = send_func;
     HS(ctx)->base_context = base_context;
+    HS(ctx)->verify_sender_cb = verify_sender_cb;
     memcpy(&HS(ctx)->crypto_ctx, crypto_ctx, sizeof(ns_crypto_t));
 
     return NS_OK;

@@ -695,6 +695,30 @@ int noise_handshakestate_set_prologue
 }
 
 /**
+ * \brief Sets the id for a HandshakeState.
+ *
+ * \param state The HandshakeState object.
+ * \param id Points to the id value.
+ *
+ * \return NOISE_ERROR_NONE on success.
+ * \return NOISE_ERROR_INVALID_PARAM if \a state or \a prologue is NULL.
+ * \return NOISE_ERROR_INVALID_STATE if this function is called after
+ * the protocol has already started.
+ */
+int noise_handshakestate_set_id
+        (NoiseHandshakeState *state, const uint8_t *id)
+{
+    /* Validate the parameters */
+    if (!state || !id)
+        return NOISE_ERROR_INVALID_PARAM;
+
+    /* Make a copy of the id for later */
+    memcpy(state->id, id, NOISE_ID_LEN);
+
+    return NOISE_ERROR_NONE;
+}
+
+/**
  * \brief Determine if a HandshakeState still needs to be configured
  * with a local keypair.
  *
@@ -1287,6 +1311,10 @@ static int noise_handshakestate_write
 
             memcpy(&rest.data[len], state->signstate->root_signature, state->signstate->signature_len);
             rest.size += state->signstate->signature_len;
+            len += state->signstate->signature_len;
+
+            memcpy(&rest.data[len], state->id, NOISE_ID_LEN);
+            rest.size += NOISE_ID_LEN;
 
             err = noise_symmetricstate_encrypt_and_hash(state->symmetric, &rest);
             if (err != NOISE_ERROR_NONE)
@@ -1485,7 +1513,7 @@ static int noise_handshakestate_read
     size_t len;
     size_t mac_len;
     uint8_t token;
-    int err;
+    int err, pos;
 
     /* Make a copy of the message buffer.  As we process tokens, the copy
        will become shorter and shorter until only the payload is left. */
@@ -1554,6 +1582,7 @@ static int noise_handshakestate_read
             mac_len = noise_symmetricstate_get_mac_length(state->symmetric);
             len = state->dh_remote_static->public_key_len
                   + state->signstate->signature_len
+                  + NOISE_ID_LEN
                   + mac_len;
             if (msg.size < len)
                 return NOISE_ERROR_INVALID_LENGTH;
@@ -1578,8 +1607,16 @@ static int noise_handshakestate_read
             if (err != NOISE_ERROR_NONE)
                 break;
 
+            pos = state->dh_remote_static->public_key_len + state->signstate->signature_len;
+
             if (state->verify_sender) {
-                state->verify_sender(state);
+                if (0 != state->verify_sender(state,
+                                              &msg2.data[pos],
+                                              msg2.data,
+                                              state->dh_remote_static->public_key_len)) {
+                    DEBUGV("Verification of sender doesn't present\n");
+                    break;
+                }
             }
 
             msg.data += len;

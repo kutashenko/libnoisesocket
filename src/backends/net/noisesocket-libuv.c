@@ -318,7 +318,8 @@ ns_init(uv_tcp_t *handle,
         ns_send_backend_t send_func,
         ns_session_ready_cb_t session_ready_cb,
         uv_alloc_cb alloc_cb,
-        uv_read_cb read_cb) {
+        uv_read_cb read_cb,
+        ns_verify_sender_cb_t verify_sender_cb) {
 
     ASSERT (handle);
     ASSERT (crypto_ctx);
@@ -356,7 +357,8 @@ ns_init(uv_tcp_t *handle,
                                    handle,
                                    crypto_ctx,
                                    send_func,
-                                   ns_handshake_state_change_cb)) {
+                                   ns_handshake_state_change_cb,
+                                   verify_sender_cb)) {
         res = NS_HANDSHAKE_ERROR;
     }
 
@@ -374,7 +376,8 @@ ns_tcp_connect_server(uv_connect_t *req,
                       const ns_negotiation_params_t *params,
                       ns_session_ready_cb_t session_ready_cb,
                       uv_alloc_cb alloc_cb,
-                      uv_read_cb read_cb) {
+                      uv_read_cb read_cb,
+                      ns_verify_sender_cb_t sender_verification_cb) {
 
     CHECK_MES(ns_init(handle,
                       true, /* is client */
@@ -383,7 +386,8 @@ ns_tcp_connect_server(uv_connect_t *req,
                       uv_send,
                       session_ready_cb,
                       alloc_cb,
-                      read_cb),
+                      read_cb,
+                      sender_verification_cb),
               DEBUG_NOISE("Cannot initialize connection.\n"));
     return uv_tcp_connect(req, handle, addr, _uv_connect);
 }
@@ -394,7 +398,8 @@ ns_tcp_connect_client(uv_tcp_t *handle,
                       const ns_negotiation_params_t *params,
                       ns_session_ready_cb_t session_ready_cb,
                       uv_alloc_cb alloc_cb,
-                      uv_read_cb read_cb) {
+                      uv_read_cb read_cb,
+                      ns_verify_sender_cb_t sender_verification_cb) {
 
     CHECK_MES(ns_init(handle,
                       false, /* is server */
@@ -403,7 +408,8 @@ ns_tcp_connect_client(uv_tcp_t *handle,
                       uv_send,
                       session_ready_cb,
                       alloc_cb,
-                      read_cb),
+                      read_cb,
+                      sender_verification_cb),
               DEBUG_NOISE("Cannot initialize connection.\n"));
     if (0 != uv_read_start((uv_stream_t*)handle, UV_HELPER(handle)->cb.alloc_cb, _uv_read)) {
         return NS_NEGOTIATION_ERROR;

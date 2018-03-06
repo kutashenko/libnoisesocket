@@ -10,6 +10,10 @@
 #include <stdbool.h>
 
 typedef void (*ns_send_backend_t)(void *ctx, const uint8_t *data, size_t data_sz);
+typedef int (*ns_verify_sender_cb_t)(void *, const uint8_t *id,
+                                     const uint8_t *public_key, size_t public_key_len);
+
+#define ID_LEN 64
 
 typedef enum {
     NS_OK,
@@ -66,6 +70,8 @@ typedef struct {
 
     const uint8_t *root_signature;
     size_t root_signature_sz;
+
+    uint8_t id[ID_LEN];
 } ns_crypto_t;
 
 typedef struct __attribute__((__packed__)) {

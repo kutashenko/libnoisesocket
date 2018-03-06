@@ -27,7 +27,8 @@ ns_handshake_init(void *ctx,
                   void *base_context,
                   const ns_crypto_t *crypto_ctx,
                   ns_send_backend_t send_func,
-                  ns_handshake_state_change_cb_t state_change_cb);
+                  ns_handshake_state_change_cb_t state_change_cb,
+                  ns_verify_sender_cb_t verify_sender_cb);
 
 ns_result_t
 ns_handshake_deinit(void *ctx);

@@ -3,6 +3,7 @@
 #include <uv.h>
 #include <noisesocket/types.h>
 #include <sodium.h>
+#include "helper.h"
 
 #include "noisesocket.h"
 
@@ -98,6 +99,15 @@ session_ready_cb(uv_tcp_t *client, ns_result_t result) {
     printf("Connected.\n");
 }
 
+static int
+verify_sender(void * empty, const uint8_t *id,
+              const uint8_t *public_key, size_t public_key_len) {
+    printf("Verify client\n");
+    printf("    Sender ID: %s.\n", (const char*)id);
+    print_buf("    Public key:", public_key, public_key_len);
+    return 0;
+}
+
 static void
 on_new_connection(uv_stream_t *server, int status) {
     if (status == -1) {
@@ -118,6 +128,7 @@ on_new_connection(uv_stream_t *server, int status) {
         crypto_ctx.root_signature_sz = 64;
         unsigned char *p = malloc(crypto_ctx.root_signature_sz);
         crypto_ctx.root_signature = p;
+        strcpy((char*)crypto_ctx.id, "SERVER");
 
         crypto_sign_ed25519_detached(p, NULL, public_key, sizeof(public_key), root_private_key);
 
@@ -126,7 +137,8 @@ on_new_connection(uv_stream_t *server, int status) {
                               ns_negotiation_default_params(),
                               session_ready_cb,
                               alloc_buffer,
-                              echo_read);
+                              echo_read,
+                              verify_sender);
     } else {
         ns_close((uv_handle_t*) client, NULL);
     }
