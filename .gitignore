@@ -12,6 +12,8 @@ CTestTestfile.cmake
 .idea/
 cmake-build-*/
 protobuf/nanopb/*
-!protobuf/nanopb/extra*
+
+!protobuf/nanopb/extra
+!protobuf/nanopb/generator
 !protobuf/nanopb/*.c
 !protobuf/nanopb/*.h
