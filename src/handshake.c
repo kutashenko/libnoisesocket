@@ -6,7 +6,6 @@
 #include <noisesocket/types.h>
 
 #include "handshake.h"
-#include "signstate.h"
 #include "helper.h"
 #include "debug.h"
 #include "noise/protocol.h"
@@ -62,9 +61,9 @@ create_handshake(ns_handshake_t *ctx) {
         return NS_HANDSHAKE_ERROR;
     }
 
-    err =  noise_handshakestate_set_id(ctx->noise, ctx->crypto_ctx.id);
+    err =  noise_handshakestate_set_meta_data(ctx->noise, ctx->crypto_ctx.meta_data, sizeof(ctx->crypto_ctx.meta_data));
     if (NOISE_ERROR_NONE != err) {
-        DEBUG_NOISE("Noise handshake can't be created. Cannot set Own id.\n");
+        DEBUG_NOISE("Noise handshake can't be created. Cannot set Meta Data.\n");
         return NS_HANDSHAKE_ERROR;
     }
 
@@ -135,39 +134,6 @@ init_handshake(ns_handshake_t *ctx) {
         DEBUG_NOISE("set client key pair ERROR %d\n", err);
         return NS_HANDSHAKE_ERROR;
     }
-
-    NoiseSignState *signstate;
-    signstate = noise_handshakestate_get_signstate(ctx->noise);
-
-    // Set Root public keys
-    err = noise_signstate_set_public_key(signstate,
-                                         ctx->crypto_ctx.root_public_key,
-                                         noise_signstate_get_public_key_length(signstate));
-    if (err != NOISE_ERROR_NONE) {
-        DEBUG_NOISE("set root public key ERROR %d\n", err);
-        return NS_HANDSHAKE_ERROR;
-    }
-
-    // Set Root signature
-    err = noise_signstate_set_root_signature(signstate,
-                                             ctx->crypto_ctx.root_signature,
-                                             noise_signstate_get_signature_length(signstate));
-    if (err != NOISE_ERROR_NONE) {
-        DEBUG_NOISE("set root signature ERROR %d\n", err);
-        return NS_HANDSHAKE_ERROR;
-    }
-
-    // Setup recipient public key
-#if 0
-    if (noise_handshakestate_needs_remote_public_key(ctx->handshake.noise)) {
-        dh = noise_handshakestate_get_remote_public_key_dh(ctx->handshake.noise);
-        key_len = noise_dhstate_get_public_key_length(dh);
-        err = noise_dhstate_set_public_key(
-                dh, noise_ctx->public_keys->elts, key_len);
-        if (err != NOISE_ERROR_NONE)
-            return NGX_ERROR;
-    }
-#endif
 
     return NS_OK;
 }

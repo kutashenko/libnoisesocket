@@ -10,6 +10,10 @@
 #include "types.h"
 #include <uv.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef void (*ns_session_ready_cb_t)(uv_tcp_t *handle, ns_result_t result);
 
 ns_result_t
@@ -42,5 +46,9 @@ ns_prepare_write(uv_stream_t *stream,
 
 size_t
 ns_write_buf_sz(size_t data_sz);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif //NOISESOCKET_NOISESOCKET_UV_H

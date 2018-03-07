@@ -7,16 +7,20 @@
 
 #include "types.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct {
     ns_patern_t default_patern;
-    ns_dh_t     default_dh;
+    ns_dh_t default_dh;
     ns_cipher_t default_cipher;
-    ns_hash_t   default_hash;
+    ns_hash_t default_hash;
 
     ns_patern_t available_paterns[NS_PATTERN_MAX];
-    ns_dh_t     available_dh_s[NS_DH_MAX];
+    ns_dh_t available_dh_s[NS_DH_MAX];
     ns_cipher_t available_ciphers[NS_CIPHER_MAX];
-    ns_hash_t   available_hashes[NS_HASH_MAX];
+    ns_hash_t available_hashes[NS_HASH_MAX];
 
     size_t available_paterns_cnt;
     size_t available_dh_s_cnt;
@@ -50,5 +54,9 @@ ns_negotiation_add_hash(ns_negotiation_params_t *ctx, ns_hash_t hash);
 
 const ns_negotiation_params_t *
 ns_negotiation_default_params();
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif //NOISESOCKET_NEGOTIATION_PARAMS_H

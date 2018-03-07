@@ -8,6 +8,10 @@
 #include "types.h"
 #include "negotiation-params.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef enum {
     NS_NEGOTIATION_NOT_STARTED,
     NS_NEGOTIATION_IN_PROGRESS,
@@ -45,5 +49,9 @@ ns_negotiation_initial_data(void *ctx);
 
 size_t
 ns_negotiation_initial_data_sz(void *ctx);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif //NOISESOCKET_NEGOTIATION_H

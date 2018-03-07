@@ -47,8 +47,6 @@ int noise_signstate_set_keypair
      const uint8_t *public_key, size_t public_key_len);
 int noise_signstate_set_keypair_private
     (NoiseSignState *state, const uint8_t *private_key, size_t private_key_len);
-int noise_signstate_set_root_signature
-        (NoiseSignState *state, const uint8_t *signature, size_t signature_len);
 int noise_signstate_get_keypair
     (const NoiseSignState *state, uint8_t *private_key, size_t private_key_len,
      uint8_t *public_key, size_t public_key_len);
@@ -56,8 +54,6 @@ int noise_signstate_set_public_key
     (NoiseSignState *state, const uint8_t *public_key, size_t public_key_len);
 int noise_signstate_get_public_key
     (const NoiseSignState *state, uint8_t *public_key, size_t public_key_len);
-int noise_signstate_get_root_signature
-        (NoiseSignState *state, const uint8_t *signature, size_t signature_len);
 int noise_signstate_clear_key(NoiseSignState *state);
 int noise_signstate_sign
     (const NoiseSignState *state, const uint8_t *message, size_t message_len,

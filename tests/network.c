@@ -7,6 +7,8 @@
 
 #include <stdbool.h>
 #include <noisesocket.h>
+#include <noisesocket/types.h>
+#include "helper.h"
 
 static uint8_t public_key[] = {
         0x2f, 0xd5, 0xe6, 0xe6, 0xac, 0xb5, 0xed, 0x96, 0x7a, 0xac, 0x13, 0x1d,
@@ -89,6 +91,16 @@ server_session_ready_cb(uv_tcp_t *client, ns_result_t result) {
     printf("Client connected.\n");
 }
 
+static int
+on_verify_client(void * empty,
+                 const uint8_t *public_key, size_t public_key_len,
+                 const uint8_t *meta_data, size_t meta_data_sz) {
+    printf("Verify client\n");
+    printf("    Meta data: %s.\n", (const char*)meta_data);
+    print_buf("    Public key:", public_key, public_key_len);
+    return 0;
+}
+
 static void
 on_new_connection(uv_stream_t *server, int status) {
     if (status == -1) {
@@ -104,13 +116,15 @@ on_new_connection(uv_stream_t *server, int status) {
         crypto_ctx.public_key_sz = sizeof(public_key);
         crypto_ctx.private_key = private_key;
         crypto_ctx.private_key_sz = sizeof(private_key);
+        strcpy((char*)crypto_ctx.meta_data, "Server Meta Data");
 
         ns_tcp_connect_client(client,
                               &crypto_ctx,
-                              &_client_params,
+                              ns_negotiation_default_params(),
                               server_session_ready_cb,
                               alloc_buffer,
-                              echo_read);
+                              echo_read,
+                              on_verify_client);
     } else {
         ns_close((uv_handle_t*) client, NULL);
         uv_stop(loop);
@@ -121,6 +135,16 @@ on_new_connection(uv_stream_t *server, int status) {
 static void
 on_close(uv_handle_t *handle) {
     printf("Client side. Closed.\n");
+}
+
+static int
+on_verify_server(void * empty,
+                 const uint8_t *public_key, size_t public_key_len,
+                 const uint8_t *meta_data, size_t meta_data_sz) {
+    printf("Verify server\n");
+    printf("    Meta data: %s.\n", (const char*)meta_data);
+    print_buf("    Public key:", public_key, public_key_len);
+    return 0;
 }
 
 static void
@@ -174,7 +198,7 @@ client_session_ready_cb(uv_tcp_t *handle, ns_result_t result) {
 
 void test_send_receive() {
     const char *addr = "0.0.0.0";
-    const uint16_t port = 30000;
+    const uint16_t port = 31000;
 
     loop = uv_default_loop();
 
@@ -205,6 +229,7 @@ void test_send_receive() {
     crypto_ctx.public_key_sz = sizeof(public_key);
     crypto_ctx.private_key = private_key;
     crypto_ctx.private_key_sz = sizeof(private_key);
+    strcpy((char*)crypto_ctx.meta_data, "Client Meta Data");
 
     ns_tcp_connect_server(&connect,
                           &socket,
@@ -213,7 +238,8 @@ void test_send_receive() {
                           ns_negotiation_default_params(),
                           client_session_ready_cb,
                           alloc_buffer,
-                          on_read);
+                          on_read,
+                          on_verify_server);
 
 
     uv_run(loop, UV_RUN_DEFAULT);
@@ -270,7 +296,8 @@ void test_send_receive_different_protocols() {
                           ns_negotiation_default_params(),
                           client_session_ready_cb,
                           alloc_buffer,
-                          on_read);
+                          on_read,
+                          on_verify_server);
 
 
     uv_run(loop, UV_RUN_DEFAULT);

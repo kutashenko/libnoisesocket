@@ -359,8 +359,6 @@ int noise_handshakestate_free(NoiseHandshakeState *state)
         noise_dhstate_free(state->dh_fixed_ephemeral);
     if (state->dh_fixed_hybrid)
         noise_dhstate_free(state->dh_fixed_hybrid);
-    if (state->signstate)
-        noise_signstate_free(state->signstate);
     noise_free(state->prologue, state->prologue_len);
 
     /* Clean and free the memory for "state" */
@@ -521,32 +519,6 @@ NoiseDHState *noise_handshakestate_get_fixed_hybrid_dh
 }
 
 /**
- * \brief Gets the SignState object that contains the signature worker.
- *
- * \param state The HandshakeState object.
- *
- * \return Returns a pointer to the SignState object for the signature worker,
- * or NULL if the system is out of memory,
- * \a state is NULL, or \a state does not support signature worker.
- */
-NoiseSignState *noise_handshakestate_get_signstate
-        (NoiseHandshakeState *state)
-{
-    if (!state)
-        return 0;
-
-    if (!state->signstate) {
-        if (noise_signstate_new_by_id
-                    (&(state->signstate), NOISE_SIGN_ED25519)
-            != NOISE_ERROR_NONE) {
-            return 0;
-        }
-    }
-
-    return state->signstate;
-}
-
-/**
  * \brief Determine if a HandshakeState object requires a pre shared key.
  *
  * \param state The HandshakeState object.
@@ -695,25 +667,28 @@ int noise_handshakestate_set_prologue
 }
 
 /**
- * \brief Sets the id for a HandshakeState.
+ * \brief Sets the meta data for a HandshakeState.
  *
  * \param state The HandshakeState object.
- * \param id Points to the id value.
+ * \param meta_data Points to the meta data value.
  *
  * \return NOISE_ERROR_NONE on success.
  * \return NOISE_ERROR_INVALID_PARAM if \a state or \a prologue is NULL.
  * \return NOISE_ERROR_INVALID_STATE if this function is called after
  * the protocol has already started.
  */
-int noise_handshakestate_set_id
-        (NoiseHandshakeState *state, const uint8_t *id)
+int noise_handshakestate_set_meta_data
+        (NoiseHandshakeState *state, const uint8_t *meta_data, size_t meta_data_sz)
 {
     /* Validate the parameters */
-    if (!state || !id)
+    if (!state || !meta_data)
         return NOISE_ERROR_INVALID_PARAM;
 
+    if (meta_data_sz > NOISE_META_DATA_LEN)
+        return NOISE_ERROR_INVALID_LENGTH;
+
     /* Make a copy of the id for later */
-    memcpy(state->id, id, NOISE_ID_LEN);
+    memcpy(state->meta_data, meta_data, meta_data_sz);
 
     return NOISE_ERROR_NONE;
 }
@@ -1309,12 +1284,8 @@ static int noise_handshakestate_write
             memcpy(rest.data, state->dh_local_static->public_key, len);
             rest.size += len;
 
-            memcpy(&rest.data[len], state->signstate->root_signature, state->signstate->signature_len);
-            rest.size += state->signstate->signature_len;
-            len += state->signstate->signature_len;
-
-            memcpy(&rest.data[len], state->id, NOISE_ID_LEN);
-            rest.size += NOISE_ID_LEN;
+            memcpy(&rest.data[len], state->meta_data, NOISE_META_DATA_LEN);
+            rest.size += NOISE_META_DATA_LEN;
 
             err = noise_symmetricstate_encrypt_and_hash(state->symmetric, &rest);
             if (err != NOISE_ERROR_NONE)
@@ -1581,8 +1552,7 @@ static int noise_handshakestate_read
                 return NOISE_ERROR_INVALID_STATE;
             mac_len = noise_symmetricstate_get_mac_length(state->symmetric);
             len = state->dh_remote_static->public_key_len
-                  + state->signstate->signature_len
-                  + NOISE_ID_LEN
+                  + NOISE_META_DATA_LEN
                   + mac_len;
             if (msg.size < len)
                 return NOISE_ERROR_INVALID_LENGTH;
@@ -1598,22 +1568,12 @@ static int noise_handshakestate_read
             if (err != NOISE_ERROR_NONE)
                 break;
 
-            err = noise_signstate_verify
-                    (state->signstate,
-                     msg2.data, state->dh_remote_static->public_key_len,
-                     &msg2.data[state->dh_remote_static->public_key_len],
-                     state->signstate->signature_len);
-
-            if (err != NOISE_ERROR_NONE)
-                break;
-
-            pos = state->dh_remote_static->public_key_len + state->signstate->signature_len;
+            pos = state->dh_remote_static->public_key_len;
 
             if (state->verify_sender) {
                 if (0 != state->verify_sender(state,
-                                              &msg2.data[pos],
-                                              msg2.data,
-                                              state->dh_remote_static->public_key_len)) {
+                                              msg2.data, state->dh_remote_static->public_key_len,
+                                              &msg2.data[pos], NOISE_META_DATA_LEN)) {
                     DEBUGV("Verification of sender doesn't present\n");
                     break;
                 }

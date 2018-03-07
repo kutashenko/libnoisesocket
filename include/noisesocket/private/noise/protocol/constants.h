@@ -156,6 +156,9 @@ extern "C" {
 /* Recommended maximum length for fingerprint buffers */
 #define NOISE_MAX_FINGERPRINT_LEN       256
 
+/* Max len of Meta Data. */
+#define NOISE_META_DATA_LEN 256
+
 #ifdef __cplusplus
 };
 #endif

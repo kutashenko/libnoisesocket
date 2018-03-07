@@ -7,6 +7,10 @@
 
 #include "types.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef enum {
     NS_HANDSHAKE_NOT_STARTED,
     NS_HANDSHAKE_IN_PROGRESS,
@@ -50,5 +54,9 @@ ns_handshake_set_params(void *ctx,
                         ns_connection_params_t *connection_params,
                         const uint8_t *initial_data,
                         size_t initial_data_sz);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif //NOISESOCKET_HANDSHAKE_H

@@ -9,11 +9,17 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
-typedef void (*ns_send_backend_t)(void *ctx, const uint8_t *data, size_t data_sz);
-typedef int (*ns_verify_sender_cb_t)(void *, const uint8_t *id,
-                                     const uint8_t *public_key, size_t public_key_len);
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-#define ID_LEN 64
+typedef void (*ns_send_backend_t)(void *ctx, const uint8_t *data, size_t data_sz);
+
+typedef int (*ns_verify_sender_cb_t)(void *,
+                                     const uint8_t *public_key, size_t public_key_len,
+                                     const uint8_t *meta_data, size_t meta_data_sz);
+
+#define META_DATA_LEN (256)
 
 typedef enum {
     NS_OK,
@@ -52,7 +58,7 @@ typedef enum {
 
 typedef enum {
 //    NS_HASH_BLAKE_2S = 1,
-    NS_HASH_BLAKE_2B = 2,
+            NS_HASH_BLAKE_2B = 2,
     NS_HASH_SHA256 = 3,
     NS_HASH_SHA512 = 4,
     NS_HASH_MAX = 3
@@ -65,13 +71,7 @@ typedef struct {
     const uint8_t *private_key;
     size_t private_key_sz;
 
-    const uint8_t *root_public_key;
-    size_t root_public_key_sz;
-
-    const uint8_t *root_signature;
-    size_t root_signature_sz;
-
-    uint8_t id[ID_LEN];
+    uint8_t meta_data[META_DATA_LEN];
 } ns_crypto_t;
 
 typedef struct __attribute__((__packed__)) {
@@ -93,5 +93,9 @@ typedef struct __attribute__((__packed__)) {
     uint16_t size;
     uint8_t data[];
 } ns_packet_t;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif //NOISESOCKET_NOISESOCKET_TYPES_H

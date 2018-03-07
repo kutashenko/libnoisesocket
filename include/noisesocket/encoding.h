@@ -7,6 +7,10 @@
 
 #include "types.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 ns_result_t
 ns_encoding_init(void *ctx,
                  void *recv_cipher,
@@ -26,5 +30,9 @@ ns_encoding_required_buf_sz(size_t data_sz);
 
 size_t
 ns_encoding_ctx_size();
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif //NOISESOCKET_NOISESOCKET_H
