@@ -593,6 +593,13 @@ struct NoiseHandshakeState_s
     * \param state Points to the SignState.
     */
     VerifySender verify_sender;
+
+    /**
+    * \brief User data.
+    *
+    * \param state Points to the User data.
+    */
+    void *data;
 };
 
 /* Handshake message pattern tokens (must be single-byte values) */

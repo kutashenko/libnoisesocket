@@ -605,13 +605,14 @@ int noise_handshakestate_set_pre_shared_key
  * \return NOISE_ERROR_INVALID_PARAM if \a state or \a key is NULL.
  */
 int noise_handshakestate_set_sender_verification
-        (NoiseHandshakeState *state, VerifySender verifycation_cb)
+        (NoiseHandshakeState *state, VerifySender verifycation_cb, void *data)
 {
     /* Validate the parameters */
     if (!state)
         return NOISE_ERROR_INVALID_PARAM;
 
     state->verify_sender = verifycation_cb;
+    state->data = data;
 
     return NOISE_ERROR_NONE;
 }
@@ -1571,7 +1572,7 @@ static int noise_handshakestate_read
             pos = state->dh_remote_static->public_key_len;
 
             if (state->verify_sender) {
-                if (0 != state->verify_sender(state,
+                if (0 != state->verify_sender(state->data,
                                               msg2.data, state->dh_remote_static->public_key_len,
                                               &msg2.data[pos], NOISE_META_DATA_LEN)) {
                     DEBUGV("Verification of sender doesn't present\n");

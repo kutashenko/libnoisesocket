@@ -32,7 +32,7 @@ extern "C" {
 #endif
 
 typedef struct NoiseHandshakeState_s NoiseHandshakeState;
-typedef int (*VerifySender)(NoiseHandshakeState *state,
+typedef int (*VerifySender)(void *user_data,
                             const uint8_t *public_key, size_t public_key_len,
                             const uint8_t *meta_data, size_t meta_data_sz);
 
@@ -57,7 +57,7 @@ int noise_handshakestate_has_pre_shared_key(const NoiseHandshakeState *state);
 int noise_handshakestate_set_pre_shared_key
     (NoiseHandshakeState *state, const uint8_t *key, size_t key_len);
 int noise_handshakestate_set_sender_verification
-        (NoiseHandshakeState *state, VerifySender verifycation_cb);
+        (NoiseHandshakeState *state, VerifySender verifycation_cb, void *data);
 int noise_handshakestate_set_prologue
     (NoiseHandshakeState *state, const void *prologue, size_t prologue_len);
 int noise_handshakestate_set_meta_data

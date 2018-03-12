@@ -15,7 +15,7 @@ extern "C" {
 
 typedef void (*ns_send_backend_t)(void *ctx, const uint8_t *data, size_t data_sz);
 
-typedef int (*ns_verify_sender_cb_t)(void *,
+typedef int (*ns_verify_sender_cb_t)(void *user_data,
                                      const uint8_t *public_key, size_t public_key_len,
                                      const uint8_t *meta_data, size_t meta_data_sz);
 

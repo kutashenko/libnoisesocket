@@ -68,7 +68,7 @@ create_handshake(ns_handshake_t *ctx) {
     }
 
     err = noise_handshakestate_set_sender_verification(
-            ctx->noise, (VerifySender)ctx->verify_sender_cb);
+            ctx->noise, (VerifySender)ctx->verify_sender_cb, ctx->base_context);
 
     if (NOISE_ERROR_NONE != err) {
         DEBUG_NOISE("Noise handshake can't be created. Cannot set sender verification callback.\n");
