@@ -12,5 +12,6 @@
 #include "noisesocket/negotiation.h"
 #include "noisesocket/handshake.h"
 #include "noisesocket/encoding.h"
+#include "noisesocket/helper.h"
 
 #endif //NOISESOCKET_H

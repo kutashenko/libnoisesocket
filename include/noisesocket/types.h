@@ -24,6 +24,7 @@ typedef int (*ns_verify_sender_cb_t)(void *,
 typedef enum {
     NS_OK,
     NS_SMALL_BUFFER_ERROR,
+    NS_PARAM_ERROR,
     NS_INIT_ERROR,
     NS_WRONG_KEYPAIR_ERROR,
     NS_VERSION_ERROR,
@@ -73,6 +74,12 @@ typedef struct {
 
     uint8_t meta_data[META_DATA_LEN];
 } ns_crypto_t;
+
+#define CTX_COUNT   (5)
+
+typedef struct {
+    void *ctx[CTX_COUNT];
+} ns_ctx_connector_t;
 
 typedef struct __attribute__((__packed__)) {
     ns_patern_t patern;
