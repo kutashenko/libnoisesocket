@@ -79,7 +79,7 @@ file(GLOB NOISESOCKET_NET_LIBUV_INCLUDE
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/Findsodium.cmake")
 
 
-########### Generate and Protobuf structures ###########
+########### Generate Protobuf structures ###########
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/protobuf/nanopb/extra)
 find_package(Nanopb REQUIRED)
 
@@ -107,7 +107,7 @@ add_subdirectory("src/noise-protocol")
 ########## Could be changed to use different backends ##########
 set (NET_BACKEND_SRC     ${NOISESOCKET_NET_LIBUV_SRC})
 set (NET_BACKEND_INCLUDE ${NOISESOCKET_NET_LIBUV_INCLUDE})
-add_definitions(-DUSE_SODIUM=1 -DDEBUG_PACKET_CONTENT=0 -DHAVE_PTHREAD=1)
+add_definitions(-DUSE_SODIUM=1 -DDEBUG_PACKET_CONTENT=0 -DHAVE_PTHREAD=1 -DPB_FIELD_16BIT=1)
 find_library(UV_LIB NAMES NAMES libuv.a)
 ######### ~Could be changed to use different backends ##########
 
