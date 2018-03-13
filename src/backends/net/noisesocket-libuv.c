@@ -158,13 +158,15 @@ static void
 _uv_close(uv_handle_t *handle) {
 
     ns_ctx_t *ns_ctx = 0;
-    ns_get_ctx(((uv_tcp_t *)handle)->data, NS_CTX, (void**)&ns_ctx);
+    ns_get_ctx(handle->data, NS_CTX, (void**)&ns_ctx);
     ns_uv_t *uv_ctx = (ns_uv_t*)ns_ctx->network;
 
     // Call user's callback
     if (uv_ctx->cb.close) {
         uv_ctx->cb.close(handle);
     }
+
+    ns_remove_ctx_connector(handle->data);
 
     // Free data
 
@@ -241,7 +243,7 @@ _uv_read(uv_stream_t *stream,
          const uv_buf_t *buf) {
 
     ns_ctx_t *ns_ctx = 0;
-    ns_get_ctx(((uv_tcp_t *)stream)->data, NS_CTX, (void**)&ns_ctx);
+    ns_get_ctx(stream->data, NS_CTX, (void**)&ns_ctx);
     ns_uv_t *uv_ctx = (ns_uv_t*)ns_ctx->network;
 
     if (nread <= 0) {
