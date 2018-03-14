@@ -14,6 +14,7 @@ extern "C" {
 typedef enum {
     NS_HANDSHAKE_NOT_STARTED,
     NS_HANDSHAKE_IN_PROGRESS,
+    NS_HANDSHAKE_WAIT_SERVER_ACCEPT,
     NS_HANDSHAKE_DONE
 } ns_handshake_state_t;
 

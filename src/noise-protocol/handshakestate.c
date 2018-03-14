@@ -1576,7 +1576,7 @@ static int noise_handshakestate_read
                                               msg2.data, state->dh_remote_static->public_key_len,
                                               &msg2.data[pos], NOISE_META_DATA_LEN)) {
                     DEBUGV("Verification of sender doesn't present\n");
-                    break;
+                    return NOISE_ERROR_INVALID_SIGNATURE;
                 }
             }
 

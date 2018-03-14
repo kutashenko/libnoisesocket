@@ -510,7 +510,7 @@ negotiation_process_client(ns_negotiation_t *ctx, const ns_packet_t *packet) {
         case NS_NEGOTIATION_NOT_STARTED:
             res = ns_send_negotiation_data(ctx);
             if (NS_OK == res) {
-                ctx->state = NS_NEGOTIATION_IN_PROGRESS;//NS_NEGOTIATION_DONE;
+                ctx->state = NS_NEGOTIATION_IN_PROGRESS;
             }
             publish_state_change(ctx, res);
 
@@ -552,7 +552,7 @@ negotiation_process_server(ns_negotiation_t *ctx, const ns_packet_t *packet) {
             ctx->state = NS_NEGOTIATION_DONE;
             publish_state_change(ctx, res);
 
-            break;
+            return NS_OK;
 
         default: {
             publish_state_change(ctx, NS_NEGOTIATION_ERROR);

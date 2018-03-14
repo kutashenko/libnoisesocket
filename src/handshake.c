@@ -11,6 +11,8 @@
 #include "noise/protocol.h"
 
 static const char * HANDSHAKE_INIT_STRING = "NoiseSocketInit1";
+static const uint8_t ACK_PACKET[] = {0x00, 0x01, 0x01};
+
 
 struct ns_handshake_s {
     bool is_client;
@@ -200,9 +202,15 @@ handshake_routine(ns_handshake_t *ctx, const ns_packet_t *packet) {
                 memset(tmp, 0, sizeof(tmp));
                 ctx->send_func(ctx->base_context, tmp, sizeof(tmp));
             }
-        } else {
-            // Either the handshake has finished or it has failed
-            ctx->state = NS_HANDSHAKE_DONE;
+        } else if (action == NOISE_ACTION_SPLIT) {
+            if (ctx->is_client) {
+                ctx->state = NS_HANDSHAKE_WAIT_SERVER_ACCEPT;
+            } else {
+                // Send accept
+                ctx->send_func(ctx->base_context, ACK_PACKET, sizeof(ACK_PACKET));
+                ctx->state = NS_HANDSHAKE_DONE;
+            }
+
             return NS_OK;
         }
     }
@@ -263,6 +271,17 @@ handshake_process_client(ns_handshake_t *ctx, const ns_packet_t *packet) {
             }
             return res;
 
+        case NS_HANDSHAKE_WAIT_SERVER_ACCEPT:
+            if (0 == memcmp(ACK_PACKET, (uint8_t*)packet, sizeof(ACK_PACKET))) {
+                ctx->state = NS_HANDSHAKE_DONE;
+                res = split_handshake(ctx);
+                noise_handshakestate_free(ctx->noise);
+                ctx->noise = NULL;
+                publish_state_change(ctx, res);
+                return res;
+            }
+            break;
+
         default: {
             publish_state_change(ctx, NS_HANDSHAKE_ERROR);
         }
@@ -294,6 +313,8 @@ handshake_process_server(ns_handshake_t *ctx, const ns_packet_t *packet) {
                 res = split_handshake(ctx);
                 noise_handshakestate_free(ctx->noise);
                 ctx->noise = NULL;
+                publish_state_change(ctx, res);
+            } else if (NS_HANDSHAKE_ERROR == res) {
                 publish_state_change(ctx, res);
             }
             return res;

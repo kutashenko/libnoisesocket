@@ -202,7 +202,9 @@ ns_close(uv_handle_t *handle, uv_close_cb close_cb) {
     ns_get_ctx(((uv_tcp_t *)handle)->data, NS_CTX, (void**)&ns_ctx);
 
     ns_ctx->network->cb.close = close_cb;
-    uv_close(handle, _uv_close);
+    if (0 == uv_is_closing(handle)) {
+        uv_close(handle, _uv_close);
+    }
     return NS_OK;
 }
 
@@ -292,9 +294,14 @@ _uv_read(uv_stream_t *stream,
         // We have enough data to get whole packet
         if (ctx->read_buf_fill == (packet_sz + NOISESOCKET_PACKET_SIZE_FIELD)) {
             ns_packet_t *packet = (ns_packet_t *) ctx->read_buf;
-            if (NS_OK != process_packet(ns_ctx, packet)) {
-                DEBUG_NOISE("Packet processing error.\n");
-                // TODO: Inform user about error
+            ns_result_t res;
+            res = process_packet(ns_ctx, packet);
+            if (NS_OK != res) {
+                DEBUG_NOISE("Packet processing error: %d.\n", (int)res);
+
+                if (ns_ctx->network->cb.read_cb) {
+                    ns_ctx->network->cb.read_cb((uv_stream_t *) ns_ctx->network->uv_tcp, -1, 0);
+                }
             }
 
             // Clean buffer for new packet
