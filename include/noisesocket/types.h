@@ -9,6 +9,10 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
+#if defined(linux)
+#include <arpa/inet.h>
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif

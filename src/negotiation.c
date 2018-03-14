@@ -32,7 +32,7 @@ compare_protocol_element(const char *protocol_str, const char *required_val) {
     ASSERT(protocol_str);
     ASSERT(required_val);
 
-    return NULL != strnstr(protocol_str, required_val, PROTOCOL_MAX_SIZE);
+    return NULL != strstr(protocol_str, required_val);
 }
 
 static const char *
@@ -211,9 +211,11 @@ fill_own_params(ns_negotiation_t *ctx) {
 
         DEBUG_NOISE("Initial protocol is %s\n", protocol_str);
 
-        strlcpy(_negotiation_initial_data.initial_protocol,
+        memset(_negotiation_initial_data.initial_protocol, 0,
+               sizeof(_negotiation_initial_data.initial_protocol));
+        strncpy(_negotiation_initial_data.initial_protocol,
                 protocol_str,
-                sizeof(_negotiation_initial_data.initial_protocol));
+                sizeof(_negotiation_initial_data.initial_protocol) - 1);
         _negotiation_initial_data.switch_protocols_count = 0;
         _negotiation_initial_data.retry_protocols_count = 0;
 

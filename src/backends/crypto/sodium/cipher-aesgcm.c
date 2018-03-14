@@ -73,7 +73,7 @@ static int noise_aesgcm_encrypt
 {
     NoiseAESGCMState *st = (NoiseAESGCMState *)state;
     noise_aesgcm_setup_iv(st);
-    crypto_aead_aes256gcm_encrypt_afternm(data, NULL, data, len, ad, ad_len, NULL, st->nonce, &st->context);
+    crypto_aead_aes256gcm_encrypt_afternm(data, NULL, data, len, ad, ad_len, NULL, st->nonce, (const crypto_aead_aes256gcm_state*)&st->context);
     return NOISE_ERROR_NONE;
 }
 
@@ -83,7 +83,7 @@ static int noise_aesgcm_decrypt
 {
     NoiseAESGCMState *st = (NoiseAESGCMState *)state;
     noise_aesgcm_setup_iv(st);
-    if (crypto_aead_aes256gcm_decrypt_afternm(data, NULL, NULL, data, len + crypto_aead_aes256gcm_ABYTES, ad, ad_len, st->nonce, &st->context) < 0)
+    if (crypto_aead_aes256gcm_decrypt_afternm(data, NULL, NULL, data, len + crypto_aead_aes256gcm_ABYTES, ad, ad_len, st->nonce, (const crypto_aead_aes256gcm_state*)&st->context) < 0)
         return NOISE_ERROR_MAC_FAILURE;
     return NOISE_ERROR_NONE;
 }

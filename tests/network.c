@@ -230,18 +230,20 @@ void test_send_receive() {
     crypto_ctx.private_key_sz = sizeof(private_key);
     strcpy((char*)crypto_ctx.meta_data, "Client Meta Data");
 
-    ns_tcp_connect_server(&connect,
-                          &socket,
-                          (const struct sockaddr *) &server_addr,
-                          &crypto_ctx,
-                          ns_negotiation_default_params(),
-                          client_session_ready_cb,
-                          alloc_buffer,
-                          on_read,
-                          on_verify_server);
+    if (NS_OK == ns_tcp_connect_server(&connect,
+                                       &socket,
+                                       (const struct sockaddr *) &server_addr,
+                                       &crypto_ctx,
+                                       ns_negotiation_default_params(),
+                                       client_session_ready_cb,
+                                       alloc_buffer,
+                                       on_read,
+                                       on_verify_server)) {
+        uv_run(loop, UV_RUN_DEFAULT);
+    } else {
+        TEST_CHECK_(false, "Cannot connect to server.");
+    }
 
-
-    uv_run(loop, UV_RUN_DEFAULT);
 
     TEST_CHECK(_receive_sz &&
                0 == memcmp(_test_string, _receive_buffer, _receive_sz));

@@ -3,6 +3,7 @@
 //
 
 #include <noisesocket/types.h>
+#include <string.h>
 #include "noisesocket-libuv.h"
 #include "debug.h"
 #include "helper.h"
@@ -417,6 +418,7 @@ ns_tcp_connect_server(uv_connect_t *req,
                       read_cb,
                       sender_verification_cb),
               DEBUG_NOISE("Cannot initialize connection.\n"));
+
     return uv_tcp_connect(req, handle, addr, _uv_connect);
 }
 

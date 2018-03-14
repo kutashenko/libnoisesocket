@@ -5,6 +5,7 @@
 #include "noisesocket.h"
 #include "debug.h"
 #include <noise/protocol.h>
+#include <string.h>
 #include "helper.h"
 
 struct ns_encoding_s {
