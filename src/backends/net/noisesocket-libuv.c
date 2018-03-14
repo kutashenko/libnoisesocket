@@ -170,13 +170,6 @@ _uv_close(uv_handle_t *handle) {
         ns_ctx->network->cb.close(handle);
     }
 
-    void *ctx = 0;
-    if (NS_OK == ns_get_ctx(handle->data, NS_CTX, &ctx) && ctx) {
-        free(ctx);
-    }
-
-    ns_remove_ctx_connector(handle->data);
-
     // Free data
 
     if (ns_ctx->negotiation) {
@@ -198,6 +191,13 @@ _uv_close(uv_handle_t *handle) {
         ns_network_free(ns_ctx->network);
         ns_ctx->network = 0;
     }
+
+    free(ns_ctx);
+
+    ns_remove_ctx_connector(handle->data);
+
+    handle->data = 0;
+
 }
 
 ns_result_t
@@ -209,6 +209,7 @@ ns_close(uv_handle_t *handle, uv_close_cb close_cb) {
     if (0 == uv_is_closing(handle)) {
         uv_close(handle, _uv_close);
     }
+
     return NS_OK;
 }
 
