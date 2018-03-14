@@ -82,8 +82,6 @@ test_protobuf_negotiation() {
     size_t message_length;
     bool status;
 
-    bool _continuous_rekey = true;
-    size_t _max_message_size = 1520;
     const char *_protocol_type = "Noise_XX_448_ChaChaPoly_BLAKE2s";
     const size_t _protocol_type_cnt = 3;
 

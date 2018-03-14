@@ -25,7 +25,6 @@ static uint8_t private_key[] = {
 static uv_loop_t *loop;
 
 static const char *_test_string = "Hello world !!!";
-static ns_negotiation_params_t _client_params;
 
 #define RECEIVE_BUF_SZ (512)
 static uint8_t _receive_buffer[RECEIVE_BUF_SZ];
