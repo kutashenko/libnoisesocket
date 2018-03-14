@@ -12,24 +12,21 @@ extern "C" {
 #endif
 
 ns_result_t
-ns_encoding_init(void *ctx,
-                 void *recv_cipher,
-                 void *send_cipher);
+ns_encoding_new(ns_encoding_t **ctx,
+                void *recv_cipher,
+                void *send_cipher);
 
 ns_result_t
-ns_encoding_deinit(void *ctx);
+ns_encoding_free(ns_encoding_t *ctx);
 
 ns_result_t
-ns_encoding_encrypt(void *ctx, uint8_t *data, size_t data_sz, size_t buf_sz, size_t *res_sz);
+ns_encoding_encrypt(ns_encoding_t *ctx, uint8_t *data, size_t data_sz, size_t buf_sz, size_t *res_sz);
 
 ns_result_t
-ns_encoding_decrypt(void *ctx, uint8_t *data, size_t data_sz, size_t *res_sz);
+ns_encoding_decrypt(ns_encoding_t *ctx, uint8_t *data, size_t data_sz, size_t *res_sz);
 
 size_t
 ns_encoding_required_buf_sz(size_t data_sz);
-
-size_t
-ns_encoding_ctx_size();
 
 #ifdef __cplusplus
 }

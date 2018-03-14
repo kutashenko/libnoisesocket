@@ -21,8 +21,14 @@ typedef int (*ns_verify_sender_cb_t)(void *user_data,
 
 #define META_DATA_LEN (256)
 
+typedef struct ns_handshake_s ns_handshake_t;
+typedef struct ns_negotiation_s ns_negotiation_t;
+typedef struct ns_encoding_s  ns_encoding_t;
+typedef struct ns_network_s ns_network_t;
+
 typedef enum {
     NS_OK,
+    NS_ALLOC_ERROR,
     NS_SMALL_BUFFER_ERROR,
     NS_PARAM_ERROR,
     NS_INIT_ERROR,
@@ -90,10 +96,10 @@ typedef struct __attribute__((__packed__)) {
 
 typedef struct {
     bool is_client;
-    void *network;
-    void *negotiation;
-    void *handshake;
-    void *encoding;
+    ns_network_t *network;
+    ns_negotiation_t *negotiation;
+    ns_handshake_t *handshake;
+    ns_encoding_t *encoding;
 } ns_ctx_t;
 
 typedef struct __attribute__((__packed__)) {

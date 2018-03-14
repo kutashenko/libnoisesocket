@@ -10,10 +10,9 @@
 #include "debug.h"
 #include "noise/protocol.h"
 
-#define HS(X) ((ns_handshake_t*)X)
 static const char * HANDSHAKE_INIT_STRING = "NoiseSocketInit1";
 
-typedef struct {
+struct ns_handshake_s {
     bool is_client;
     ns_handshake_state_t state;
     void *base_context;
@@ -32,7 +31,7 @@ typedef struct {
     NoiseHandshakeState *noise;
     NoiseCipherState *send_cipher;
     NoiseCipherState *recv_cipher;
-} ns_handshake_t;
+};
 
 static ns_result_t
 create_handshake(ns_handshake_t *ctx) {
@@ -308,18 +307,18 @@ handshake_process_server(ns_handshake_t *ctx, const ns_packet_t *packet) {
 }
 
 ns_result_t
-ns_handshake_process(void *ctx, const ns_packet_t *packet) {
+ns_handshake_process(ns_handshake_t *ctx, const ns_packet_t *packet) {
     ASSERT(ctx);
 
-    if (HS(ctx)->is_client) {
-        return handshake_process_client(HS(ctx), packet);
+    if (ctx->is_client) {
+        return handshake_process_client(ctx, packet);
     }
 
-    return handshake_process_server(HS(ctx), packet);
+    return handshake_process_server(ctx, packet);
 }
 
 ns_result_t
-ns_handshake_init(void *ctx,
+ns_handshake_new(ns_handshake_t **ctx,
                   bool is_client,
                   void *base_context,
                   const ns_crypto_t *crypto_ctx,
@@ -331,25 +330,39 @@ ns_handshake_init(void *ctx,
     ASSERT(crypto_ctx);
     ASSERT(send_func);
 
-    memset(HS(ctx), 0, ns_handshake_ctx_size());
-    HS(ctx)->is_client = is_client;
-    HS(ctx)->state = NS_HANDSHAKE_NOT_STARTED;
-    HS(ctx)->state_change_cb = state_change_cb;
-    HS(ctx)->send_func = send_func;
-    HS(ctx)->base_context = base_context;
-    HS(ctx)->verify_sender_cb = verify_sender_cb;
-    memcpy(&HS(ctx)->crypto_ctx, crypto_ctx, sizeof(ns_crypto_t));
+    *ctx = calloc(1, sizeof(ns_handshake_t));
+    ASSERT(*ctx);
+
+    if (!*ctx) {
+        return NS_ALLOC_ERROR;
+    }
+
+    memset(*ctx, 0, ns_handshake_ctx_size());
+    (*ctx)->is_client = is_client;
+    (*ctx)->state = NS_HANDSHAKE_NOT_STARTED;
+    (*ctx)->state_change_cb = state_change_cb;
+    (*ctx)->send_func = send_func;
+    (*ctx)->base_context = base_context;
+    (*ctx)->verify_sender_cb = verify_sender_cb;
+    memcpy(&(*ctx)->crypto_ctx, crypto_ctx, sizeof(ns_crypto_t));
 
     return NS_OK;
 }
 
 ns_result_t
-ns_handshake_deinit(void *ctx) {
+ns_handshake_free(ns_handshake_t *ctx) {
     ASSERT(ctx);
 
-    if (HS(ctx)->initial_data) {
-        free(HS(ctx)->initial_data);
+    if (!ctx) {
+        return NS_OK;
     }
+
+    if (ctx->initial_data) {
+        free(ctx->initial_data);
+    }
+
+    free(ctx);
+
     return NS_OK;
 }
 
@@ -359,25 +372,25 @@ ns_handshake_ctx_size() {
 }
 
 ns_handshake_state_t
-ns_handshake_state(void *ctx) {
+ns_handshake_state(ns_handshake_t *ctx) {
     ASSERT(ctx);
-    return HS(ctx)->state;
+    return ctx->state;
 }
 
 void *
-ns_handshake_send_cipher(void *ctx) {
+ns_handshake_send_cipher(ns_handshake_t *ctx) {
     ASSERT(ctx);
-    return HS(ctx)->send_cipher;
+    return ctx->send_cipher;
 }
 
 void *
-ns_handshake_recv_cipher(void *ctx) {
+ns_handshake_recv_cipher(ns_handshake_t *ctx) {
     ASSERT(ctx);
-    return HS(ctx)->recv_cipher;
+    return ctx->recv_cipher;
 }
 
 void
-ns_handshake_set_params(void *ctx,
+ns_handshake_set_params(ns_handshake_t *ctx,
                         ns_connection_params_t *connection_params,
                         const uint8_t *initial_data,
                         size_t initial_data_sz) {
@@ -385,11 +398,11 @@ ns_handshake_set_params(void *ctx,
     ASSERT(initial_data);
     ASSERT(connection_params);
 
-    memcpy(&HS(ctx)->connection_params,
+    memcpy(&ctx->connection_params,
            connection_params,
-           sizeof(HS(ctx)->connection_params));
+           sizeof(ctx->connection_params));
 
-    HS(ctx)->initial_data = malloc(initial_data_sz);
-    HS(ctx)->initial_data_sz = initial_data_sz;
-    memcpy(HS(ctx)->initial_data, initial_data, initial_data_sz);
+    ctx->initial_data = malloc(initial_data_sz);
+    ctx->initial_data_sz = initial_data_sz;
+    memcpy(ctx->initial_data, initial_data, initial_data_sz);
 }

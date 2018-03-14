@@ -198,7 +198,7 @@ client_session_ready_cb(uv_tcp_t *handle, ns_result_t result) {
 
 void test_send_receive() {
     const char *addr = "0.0.0.0";
-    const uint16_t port = 31000;
+    const uint16_t port = 30010;
 
     loop = uv_default_loop();
 

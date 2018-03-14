@@ -11,15 +11,13 @@
 #include <pb_decode.h>
 #include <negotiation.pb.h>
 
-#define NG(X) ((ns_negotiation_t*)X)
-
 #define PROTOCOL_MAX_SIZE   100
 
 static negotiation_initial_data _negotiation_initial_data = negotiation_initial_data_init_zero;
 static bool _params_cached = false;
 const char *separator = "_";
 
-typedef struct {
+struct ns_negotiation_s {
     bool is_client;
     ns_negotiation_state_t state;
     ns_negotiation_state_change_cb_t state_change_cb;
@@ -27,7 +25,7 @@ typedef struct {
     ns_connection_params_t connection_params;
     void *base_context;
     const ns_negotiation_params_t *params;
-} ns_negotiation_t;
+};
 
 static bool
 compare_protocol_element(const char *protocol_str, const char *required_val) {
@@ -424,7 +422,7 @@ clean:
 static ns_result_t
 ns_send_negotiation_data(ns_negotiation_t *ctx) {
     ASSERT(ctx);
-    ASSERT(NG(ctx)->send_func);
+    ASSERT(ctx->send_func);
 
     DEBUG_NOISE("Send negotiation data.\n");
 
@@ -445,7 +443,7 @@ ns_send_negotiation_data(ns_negotiation_t *ctx) {
 static ns_result_t
 ns_send_negotiation_response(ns_negotiation_t *ctx, bool accepted, const char *protocol) {
     ASSERT(ctx);
-    ASSERT(NG(ctx)->send_func);
+    ASSERT(ctx->send_func);
 
     DEBUG_NOISE("Send negotiation response %s.\n", protocol ? protocol : "REJECT");
 
@@ -563,18 +561,18 @@ negotiation_process_server(ns_negotiation_t *ctx, const ns_packet_t *packet) {
 }
 
 ns_result_t
-ns_negotiation_process(void *ctx, const ns_packet_t *packet) {
+ns_negotiation_process(ns_negotiation_t *ctx, const ns_packet_t *packet) {
     ASSERT(ctx);
 
-    if (NG(ctx)->is_client) {
-        return negotiation_process_client(NG(ctx), packet);
+    if (ctx->is_client) {
+        return negotiation_process_client(ctx, packet);
     }
 
-    return negotiation_process_server(NG(ctx), packet);
+    return negotiation_process_server(ctx, packet);
 }
 
 ns_result_t
-ns_negotiation_init(void *ctx,
+ns_negotiation_new(ns_negotiation_t **ctx,
                     bool is_client,
                     void *base_context,
                     const ns_negotiation_params_t *params,
@@ -591,41 +589,45 @@ ns_negotiation_init(void *ctx,
 
     DEBUG_NOISE("Init negotiation\n");
 
-    memset(NG(ctx), 0, ns_negotiation_ctx_size());
-    NG(ctx)->is_client = is_client;
-    NG(ctx)->state = NS_NEGOTIATION_NOT_STARTED;
-    NG(ctx)->state_change_cb = state_change_cb;
-    NG(ctx)->send_func = send_func;
-    NG(ctx)->base_context = base_context;
-    NG(ctx)->params = params;
+    *ctx = calloc(1, sizeof(ns_negotiation_t));
+
+    (*ctx)->is_client = is_client;
+    (*ctx)->state = NS_NEGOTIATION_NOT_STARTED;
+    (*ctx)->state_change_cb = state_change_cb;
+    (*ctx)->send_func = send_func;
+    (*ctx)->base_context = base_context;
+    (*ctx)->params = params;
 
     return NS_OK;
 }
 
 ns_result_t
-ns_negotiation_deinit(void *ctx) {
-    DEBUG_NOISE("Deinit negotiation\n");
+ns_negotiation_free(ns_negotiation_t *ctx) {
+    DEBUG_NOISE("Free negotiation\n");
+    ASSERT(ctx);
+
+    if (!ctx) {
+        return NS_PARAM_ERROR;
+    }
+
+    free(ctx);
+
     return NS_OK;
 }
 
 ns_negotiation_state_t
-ns_negotiation_state(void *ctx) {
+ns_negotiation_state(ns_negotiation_t *ctx) {
     ASSERT(ctx);
-    return NG(ctx)->state;
-}
-
-size_t
-ns_negotiation_ctx_size() {
-    return sizeof(ns_negotiation_t);
+    return ctx->state;
 }
 
 const uint8_t *
-ns_negotiation_initial_data(void *ctx) {
+ns_negotiation_initial_data(ns_negotiation_t *ctx) {
     ASSERT(ctx);
-    return (uint8_t *)&NG(ctx)->connection_params;
+    return (uint8_t *)&ctx->connection_params;
 }
 
 size_t
-ns_negotiation_initial_data_sz(void *ctx) {
+ns_negotiation_initial_data_sz(ns_negotiation_t *ctx) {
     return sizeof(ns_connection_params_t);
 }
