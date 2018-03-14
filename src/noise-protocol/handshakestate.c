@@ -1237,7 +1237,7 @@ static int noise_handshakestate_write
         rest.max_size = message->max_size - message->size;
 
         /* Process the token */
-        err = NOISE_ERROR_NONE;
+
         switch (token) {
         case NOISE_TOKEN_E:
             /* Generate a local ephemeral keypair and add the public
@@ -1509,7 +1509,7 @@ static int noise_handshakestate_read
             DEBUGV(" >>>>>>>>>> NOISE_TOKEN_FLIP_DIR\n");
             break;
         }
-        err = NOISE_ERROR_NONE;
+
         switch (token) {
         case NOISE_TOKEN_E:
                 DEBUGV("NOISE_TOKEN_E\n");
@@ -1676,7 +1676,6 @@ static int noise_handshakestate_read
     }
 
     /* Decrypt the remaining bytes and return them in the payload buffer */
-    mac_len = noise_symmetricstate_get_mac_length(state->symmetric);
     err = noise_symmetricstate_decrypt_and_hash(state->symmetric, &msg);
     if (err != NOISE_ERROR_NONE)
         return err;

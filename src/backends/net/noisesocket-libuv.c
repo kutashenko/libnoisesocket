@@ -360,7 +360,7 @@ ns_init(uv_tcp_t *handle,
                calloc(1, sizeof(ns_ctx_t)));
 
     ns_ctx_t *ns_ctx = 0;
-    ns_get_ctx(((uv_tcp_t *)handle)->data, NS_CTX, (void**)&ns_ctx);
+    ns_get_ctx(handle->data, NS_CTX, (void**)&ns_ctx);
 
     ns_ctx->is_client = is_client;
 
@@ -441,7 +441,7 @@ ns_tcp_connect_client(uv_tcp_t *handle,
               DEBUG_NOISE("Cannot initialize connection.\n"));
 
     ns_ctx_t *ns_ctx = 0;
-    ns_get_ctx(((uv_tcp_t *)handle)->data, NS_CTX, (void**)&ns_ctx);
+    ns_get_ctx(handle->data, NS_CTX, (void**)&ns_ctx);
 
     if (0 != uv_read_start((uv_stream_t*)handle, ns_ctx->network->cb.alloc_cb, _uv_read)) {
         return NS_NEGOTIATION_ERROR;

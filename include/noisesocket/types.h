@@ -21,6 +21,8 @@ typedef int (*ns_verify_sender_cb_t)(void *user_data,
 
 #define META_DATA_LEN (256)
 
+#define UNUSED(x) (void)(x)
+
 typedef struct ns_handshake_s ns_handshake_t;
 typedef struct ns_negotiation_s ns_negotiation_t;
 typedef struct ns_encoding_s  ns_encoding_t;
