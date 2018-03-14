@@ -378,6 +378,10 @@ ns_handshake_free(ns_handshake_t *ctx) {
         return NS_OK;
     }
 
+    if (ctx->noise) {
+        noise_handshakestate_free(ctx->noise);
+    }
+
     if (ctx->initial_data) {
         free(ctx->initial_data);
     }
