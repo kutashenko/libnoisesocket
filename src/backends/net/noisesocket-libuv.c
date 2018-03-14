@@ -33,7 +33,7 @@ write_cb(uv_write_t *req, int status) {
     if (status == -1) {
         DEBUG_NOISE ("Write error!\n");
     }
-    char *base = (char *) req->data;
+    char *base = (char *) req->bufsml[0].base;
     free(base);
     free(req);
 }
@@ -56,8 +56,7 @@ uv_send(void *ctx, const uint8_t *data, size_t data_sz) {
     print_buf("Send data", data, data_sz);
 #endif
 
-    uv_write_t *write_req = (uv_write_t *) malloc(sizeof(uv_write_t));
-    write_req->data = (void *)buf.base;
+    uv_write_t *write_req = (uv_write_t *) calloc(1, sizeof(uv_write_t));
     uv_write(write_req,
              stream,
              &buf, 1,
@@ -169,6 +168,11 @@ _uv_close(uv_handle_t *handle) {
     // Call user's callback
     if (ns_ctx->network->cb.close) {
         ns_ctx->network->cb.close(handle);
+    }
+
+    void *ctx = 0;
+    if (NS_OK == ns_get_ctx(handle->data, NS_CTX, &ctx) && ctx) {
+        free(ctx);
     }
 
     ns_remove_ctx_connector(handle->data);
@@ -387,7 +391,6 @@ ns_init(uv_tcp_t *handle,
     }
 
     // Setup handshake
-    ns_ctx->handshake = calloc(1, ns_handshake_ctx_size());
     if (NS_OK != ns_handshake_new(&ns_ctx->handshake,
                                   is_client,
                                   handle,
