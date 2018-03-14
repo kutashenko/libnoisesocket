@@ -102,6 +102,7 @@ typedef struct __attribute__((__packed__)) {
 
 typedef struct {
     bool is_client;
+    bool is_deletable;
     ns_network_t *network;
     ns_negotiation_t *negotiation;
     ns_handshake_t *handshake;

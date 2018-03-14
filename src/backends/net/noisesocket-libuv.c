@@ -192,12 +192,17 @@ _uv_close(uv_handle_t *handle) {
         ns_ctx->network = 0;
     }
 
+    bool need_self_free = ns_ctx->is_deletable;
+
     free(ns_ctx);
 
     ns_remove_ctx_connector(handle->data);
 
     handle->data = 0;
 
+    if (need_self_free) {
+        free(handle);
+    }
 }
 
 ns_result_t
@@ -257,6 +262,7 @@ _uv_read(uv_stream_t *stream,
 
     if (nread <= 0) {
         publish_result(ns_ctx->network, NS_DATA_RECV_ERROR);
+        free(buf->base);
         return;
     }
 
@@ -316,6 +322,8 @@ _uv_read(uv_stream_t *stream,
 #endif
         }
     }
+
+    free(buf->base);
 }
 
 static void
@@ -459,6 +467,22 @@ ns_tcp_connect_client(uv_tcp_t *handle,
     if (0 != uv_read_start((uv_stream_t*)handle, ns_ctx->network->cb.alloc_cb, _uv_read)) {
         return NS_NEGOTIATION_ERROR;
     }
+    return NS_OK;
+}
+
+ns_result_t
+ns_set_deletable(uv_handle_t *handle, bool deletable) {
+    ASSERT (handle);
+    ASSERT (handle->data);
+
+    if (!handle || !handle->data) {
+        return NS_PARAM_ERROR;
+    }
+
+    ns_ctx_t *ns_ctx = 0;
+    ns_get_ctx(handle->data, NS_CTX, (void**)&ns_ctx);
+    ns_ctx->is_deletable = deletable;
+
     return NS_OK;
 }
 

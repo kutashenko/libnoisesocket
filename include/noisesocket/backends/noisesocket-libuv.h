@@ -37,6 +37,9 @@ ns_tcp_connect_client(uv_tcp_t *handle,
                       ns_verify_sender_cb_t sender_verification_cb);
 
 ns_result_t
+ns_set_deletable(uv_handle_t *handle, bool deletable);
+
+ns_result_t
 ns_close(uv_handle_t *handle, uv_close_cb close_cb);
 
 ns_result_t
